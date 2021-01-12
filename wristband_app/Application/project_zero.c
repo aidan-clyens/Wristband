@@ -75,7 +75,6 @@
 
 /* Bluetooth Profiles */
 #include <devinfoservice.h>
-#include <services/led_service.h>
 #include <services/data_service.h>
 
 /* Application specific includes */
@@ -302,7 +301,6 @@ static uint8_t scanRspData[] =
     // in this peripheral
     (ATT_UUID_SIZE + 0x01),   // length of this data, LED service UUID + header
     GAP_ADTYPE_128BIT_MORE,   // some of the UUID's, but not all
-    LED_SERVICE_SERV_UUID_BASE128(LED_SERVICE_SERV_UUID),
 };
 
 // Advertising handles
@@ -378,9 +376,6 @@ static void ProjectZero_processCmdCompleteEvt(hciEvt_CmdComplete_t *pMsg);
 static void ProjectZero_processAdvEvent(pzGapAdvEventData_t *pEventData);
 
 /* Profile value change handlers */
-static void ProjectZero_updateCharVal(pzCharacteristicData_t *pCharData);
-static void ProjectZero_LedService_ValueChangeHandler(
-    pzCharacteristicData_t *pCharData);
 static void ProjectZero_DataService_ValueChangeHandler(
     pzCharacteristicData_t *pCharData);
 static void ProjectZero_DataService_CfgChangeHandler(
@@ -399,10 +394,6 @@ static void ProjectZero_pairStateCb(uint16_t connHandle,
                                     uint8_t state,
                                     uint8_t status);
 
-static void ProjectZero_LedService_ValueChangeCB(uint16_t connHandle,
-                                                 uint8_t paramID,
-                                                 uint16_t len,
-                                                 uint8_t *pValue);
 static void ProjectZero_DataService_ValueChangeCB(uint16_t connHandle,
                                                   uint8_t paramID,
                                                   uint16_t len,
@@ -462,14 +453,6 @@ static gapBondCBs_t ProjectZero_BondMgrCBs =
 /*
  * Callbacks in the user application for events originating from BLE services.
  */
-// LED Service callback handler.
-// The type LED_ServiceCBs_t is defined in led_service.h
-static LedServiceCBs_t ProjectZero_LED_ServiceCBs =
-{
-    .pfnChangeCb = ProjectZero_LedService_ValueChangeCB,  // Characteristic value change callback handler
-    .pfnCfgChangeCb = NULL, // No notification-/indication enabled chars in LED Service
-};
-
 // Data Service callback handler.
 // The type Data_ServiceCBs_t is defined in data_service.h
 static DataServiceCBs_t ProjectZero_Data_ServiceCBs =
@@ -624,21 +607,15 @@ static void ProjectZero_init(void)
     DevInfo_AddService();                      // Device Information Service
 
     // Add services to GATT server and give ID of this task for Indication acks.
-    LedService_AddService(selfEntity);
     DataService_AddService(selfEntity);
 
     // Register callbacks with the generated services that
     // can generate events (writes received) to the application
-    LedService_RegisterAppCBs(&ProjectZero_LED_ServiceCBs);
     DataService_RegisterAppCBs(&ProjectZero_Data_ServiceCBs);
 
     // Placeholder variable for characteristic intialization
     uint8_t initVal[40] = {0};
     uint8_t initString[] = "This is a pretty long string, isn't it!";
-
-    // Initalization of characteristics in LED_Service that can provide data.
-    LedService_SetParameter(LS_LED0_ID, LS_LED0_LEN, initVal);
-    LedService_SetParameter(LS_LED1_ID, LS_LED1_LEN, initVal);
 
     // Initalization of characteristics in Data_Service that can provide data.
     DataService_SetParameter(DS_STRING_ID, sizeof(initString), initString);
@@ -877,9 +854,6 @@ static void ProjectZero_processApplicationMessage(pzMsg_t *pMsg)
           /* Call different handler per service */
           switch(pCharData->svcUUID)
           {
-            case LED_SERVICE_SERV_UUID:
-                ProjectZero_LedService_ValueChangeHandler(pCharData);
-                break;
             case DATA_SERVICE_SERV_UUID:
                 ProjectZero_DataService_ValueChangeHandler(pCharData);
                 break;
@@ -897,7 +871,6 @@ static void ProjectZero_processApplicationMessage(pzMsg_t *pMsg)
           break;
 
       case PZ_UPDATE_CHARVAL_EVT: /* Message from ourselves to send  */
-          ProjectZero_updateCharVal(pCharData);
           break;
 
       case PZ_BUTTON_DEBOUNCED_EVT: /* Message from swi about pin change */
@@ -1799,64 +1772,6 @@ static void ProjectZero_handleButtonPress(pzButtonState_t *pState)
  *
  * @return  None.
  */
-void ProjectZero_LedService_ValueChangeHandler(
-    pzCharacteristicData_t *pCharData)
-{
-    static uint8_t pretty_data_holder[16]; // 5 bytes as hex string "AA:BB:CC:DD:EE"
-    util_arrtohex(pCharData->data, pCharData->dataLen,
-                  pretty_data_holder, sizeof(pretty_data_holder),
-                  UTIL_ARRTOHEX_NO_REVERSE);
-
-    switch(pCharData->paramID)
-    {
-    case LS_LED0_ID:
-        Log_info3("Value Change msg: %s %s: %s",
-                  (uintptr_t)"LED Service",
-                  (uintptr_t)"LED0",
-                  (uintptr_t)pretty_data_holder);
-
-        // Do something useful with pCharData->data here
-        // -------------------------
-        // Set the output value equal to the received value. 0 is off, not 0 is on
-        PIN_setOutputValue(ledPinHandle, Board_PIN_RLED, pCharData->data[0]);
-        Log_info2("Turning %s %s",
-                  (uintptr_t)ANSI_COLOR(FG_RED)"LED0"ANSI_COLOR(ATTR_RESET),
-                  (uintptr_t)(pCharData->data[0] ? "on" : "off"));
-        break;
-
-    case LS_LED1_ID:
-        Log_info3("Value Change msg: %s %s: %s",
-                  (uintptr_t)"LED Service",
-                  (uintptr_t)"LED1",
-                  (uintptr_t)pretty_data_holder);
-
-        // Do something useful with pCharData->data here
-        // -------------------------
-        // Set the output value equal to the received value. 0 is off, not 0 is on
-        PIN_setOutputValue(ledPinHandle, Board_PIN_GLED, pCharData->data[0]);
-        Log_info2("Turning %s %s",
-                  (uintptr_t)ANSI_COLOR(FG_GREEN)"LED1"ANSI_COLOR(ATTR_RESET),
-                  (uintptr_t)(pCharData->data[0] ? "on" : "off"));
-        break;
-
-    default:
-        return;
-    }
-}
-
-/*
- * @brief   Handle a write request sent from a peer device.
- *
- *          Invoked by the Task based on a message received from a callback.
- *
- *          When we get here, the request has already been accepted by the
- *          service and is valid from a BLE protocol perspective as well as
- *          having the correct length as defined in the service implementation.
- *
- * @param   pCharData  pointer to malloc'd char write data
- *
- * @return  None.
- */
 void ProjectZero_DataService_ValueChangeHandler(
     pzCharacteristicData_t *pCharData)
 {
@@ -1937,25 +1852,6 @@ void ProjectZero_DataService_CfgChangeHandler(pzCharacteristicData_t *pCharData)
         // Do something useful with configValue here. It tells you whether someone
         // wants to know the state of this characteristic.
         // ...
-        break;
-    }
-}
-
-/*
- * @brief  Convenience function for updating characteristic data via pzCharacteristicData_t
- *         structured message.
- *
- * @note   Must run in Task context in case BLE Stack APIs are invoked.
- *
- * @param  *pCharData  Pointer to struct with value to update.
- */
-static void ProjectZero_updateCharVal(pzCharacteristicData_t *pCharData)
-{
-    switch(pCharData->svcUUID)
-    {
-    case LED_SERVICE_SERV_UUID:
-        LedService_SetParameter(pCharData->paramID, pCharData->dataLen,
-                                pCharData->data);
         break;
     }
 }
@@ -2061,41 +1957,6 @@ static void ProjectZero_passcodeCb(uint8_t *pDeviceAddr,
         }
     }
     ;
-}
-
-/*********************************************************************
- * @fn      ProjectZero_LedService_ValueChangeCB
- *
- * @brief   Callback for characteristic change when a peer writes to us
- *
- * @param   connHandle - connection handle
- *          paramID - the parameter ID maps to the characteristic written to
- *          len - length of the data written
- *          pValue - pointer to the data written
- */
-static void ProjectZero_LedService_ValueChangeCB(uint16_t connHandle,
-                                                 uint8_t paramID, uint16_t len,
-                                                 uint8_t *pValue)
-{
-    // See the service header file to compare paramID with characteristic.
-    Log_info1("(CB) LED Svc Characteristic value change: paramID(%d). "
-              "Sending msg to app.", paramID);
-
-    pzCharacteristicData_t *pValChange =
-        ICall_malloc(sizeof(pzCharacteristicData_t) + len);
-
-    if(pValChange != NULL)
-    {
-        pValChange->svcUUID = LED_SERVICE_SERV_UUID;
-        pValChange->paramID = paramID;
-        memcpy(pValChange->data, pValue, len);
-        pValChange->dataLen = len;
-
-        if(ProjectZero_enqueueMsg(PZ_SERVICE_WRITE_EVT, pValChange) != SUCCESS)
-        {
-          ICall_free(pValChange);
-        }
-    }
 }
 
 /*********************************************************************
