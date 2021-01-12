@@ -75,7 +75,6 @@
 
 /* Bluetooth Profiles */
 #include <devinfoservice.h>
-#include <services/data_service.h>
 
 /* Application specific includes */
 #include <Board.h>
@@ -376,10 +375,7 @@ static void ProjectZero_processCmdCompleteEvt(hciEvt_CmdComplete_t *pMsg);
 static void ProjectZero_processAdvEvent(pzGapAdvEventData_t *pEventData);
 
 /* Profile value change handlers */
-static void ProjectZero_DataService_ValueChangeHandler(
-    pzCharacteristicData_t *pCharData);
-static void ProjectZero_DataService_CfgChangeHandler(
-    pzCharacteristicData_t *pCharData);
+// TODO
 
 /* Stack or profile callback function */
 static void ProjectZero_advCallback(uint32_t event,
@@ -393,15 +389,6 @@ static void ProjectZero_passcodeCb(uint8_t *pDeviceAddr,
 static void ProjectZero_pairStateCb(uint16_t connHandle,
                                     uint8_t state,
                                     uint8_t status);
-
-static void ProjectZero_DataService_ValueChangeCB(uint16_t connHandle,
-                                                  uint8_t paramID,
-                                                  uint16_t len,
-                                                  uint8_t *pValue);
-static void ProjectZero_DataService_CfgChangeCB(uint16_t connHandle,
-                                                uint8_t paramID,
-                                                uint16_t len,
-                                                uint8_t *pValue);
 
 /* Connection handling functions */
 static uint8_t ProjectZero_getConnIndex(uint16_t connHandle);
@@ -449,18 +436,6 @@ static gapBondCBs_t ProjectZero_BondMgrCBs =
     ProjectZero_passcodeCb,     // Passcode callback
     ProjectZero_pairStateCb     // Pairing/Bonding state Callback
 };
-
-/*
- * Callbacks in the user application for events originating from BLE services.
- */
-// Data Service callback handler.
-// The type Data_ServiceCBs_t is defined in data_service.h
-static DataServiceCBs_t ProjectZero_Data_ServiceCBs =
-{
-    .pfnChangeCb = ProjectZero_DataService_ValueChangeCB,  // Characteristic value change callback handler
-    .pfnCfgChangeCb = ProjectZero_DataService_CfgChangeCB, // Noti/ind configuration callback handler
-};
-
 
 /*********************************************************************
  * PUBLIC FUNCTIONS
@@ -606,20 +581,16 @@ static void ProjectZero_init(void)
     GATTServApp_AddService(GATT_ALL_SERVICES); // GATT Service
     DevInfo_AddService();                      // Device Information Service
 
-    // Add services to GATT server and give ID of this task for Indication acks.
-    DataService_AddService(selfEntity);
+    // TODO: Add services to GATT server and give ID of this task for Indication acks.
 
-    // Register callbacks with the generated services that
+    // TODO: Register callbacks with the generated services that
     // can generate events (writes received) to the application
-    DataService_RegisterAppCBs(&ProjectZero_Data_ServiceCBs);
 
     // Placeholder variable for characteristic intialization
     uint8_t initVal[40] = {0};
     uint8_t initString[] = "This is a pretty long string, isn't it!";
 
-    // Initalization of characteristics in Data_Service that can provide data.
-    DataService_SetParameter(DS_STRING_ID, sizeof(initString), initString);
-    DataService_SetParameter(DS_STREAM_ID, DS_STREAM_LEN, initVal);
+    // TODO: Initalization of characteristics in services that can provide data.
 
     // Start Bond Manager and register callback
     VOID GAPBondMgr_Register(&ProjectZero_BondMgrCBs);
@@ -854,9 +825,9 @@ static void ProjectZero_processApplicationMessage(pzMsg_t *pMsg)
           /* Call different handler per service */
           switch(pCharData->svcUUID)
           {
-            case DATA_SERVICE_SERV_UUID:
-                ProjectZero_DataService_ValueChangeHandler(pCharData);
-                break;
+          // TODO
+          default:
+              break;
           }
           break;
 
@@ -864,9 +835,9 @@ static void ProjectZero_processApplicationMessage(pzMsg_t *pMsg)
           /* Call different handler per service */
           switch(pCharData->svcUUID)
           {
-            case DATA_SERVICE_SERV_UUID:
-                ProjectZero_DataService_CfgChangeHandler(pCharData);
-                break;
+          // TODO
+          default:
+              break;
           }
           break;
 
@@ -1759,103 +1730,6 @@ static void ProjectZero_handleButtonPress(pzButtonState_t *pState)
                          ));
 }
 
-/*
- * @brief   Handle a write request sent from a peer device.
- *
- *          Invoked by the Task based on a message received from a callback.
- *
- *          When we get here, the request has already been accepted by the
- *          service and is valid from a BLE protocol perspective as well as
- *          having the correct length as defined in the service implementation.
- *
- * @param   pCharData  pointer to malloc'd char write data
- *
- * @return  None.
- */
-void ProjectZero_DataService_ValueChangeHandler(
-    pzCharacteristicData_t *pCharData)
-{
-    // Value to hold the received string for printing via Log, as Log printouts
-    // happen in the Idle task, and so need to refer to a global/static variable.
-    static uint8_t received_string[DS_STRING_LEN] = {0};
-
-    switch(pCharData->paramID)
-    {
-    case DS_STRING_ID:
-        // Do something useful with pCharData->data here
-        // -------------------------
-        // Copy received data to holder array, ensuring NULL termination.
-        memset(received_string, 0, DS_STRING_LEN);
-        memcpy(received_string, pCharData->data,
-               MIN(pCharData->dataLen, DS_STRING_LEN - 1));
-        // Needed to copy before log statement, as the holder array remains after
-        // the pCharData message has been freed and reused for something else.
-        Log_info3("Value Change msg: %s %s: %s",
-                  (uintptr_t)"Data Service",
-                  (uintptr_t)"String",
-                  (uintptr_t)received_string);
-        break;
-
-    case DS_STREAM_ID:
-        Log_info3("Value Change msg: Data Service Stream: %02x:%02x:%02x...",
-                  pCharData->data[0],
-                  pCharData->data[1],
-                  pCharData->data[2]);
-        // -------------------------
-        // Do something useful with pCharData->data here
-        break;
-
-    default:
-        return;
-    }
-}
-
-/*
- * @brief   Handle a CCCD (configuration change) write received from a peer
- *          device. This tells us whether the peer device wants us to send
- *          Notifications or Indications.
- *
- * @param   pCharData  pointer to malloc'd char write data
- *
- * @return  None.
- */
-void ProjectZero_DataService_CfgChangeHandler(pzCharacteristicData_t *pCharData)
-{
-    // Cast received data to uint16, as that's the format for CCCD writes.
-    uint16_t configValue = *(uint16_t *)pCharData->data;
-    char *configValString;
-
-    // Determine what to tell the user
-    switch(configValue)
-    {
-    case GATT_CFG_NO_OPERATION:
-        configValString = "Noti/Ind disabled";
-        break;
-    case GATT_CLIENT_CFG_NOTIFY:
-        configValString = "Notifications enabled";
-        break;
-    case GATT_CLIENT_CFG_INDICATE:
-        configValString = "Indications enabled";
-        break;
-    default:
-        configValString = "Unsupported operation";
-    }
-
-    switch(pCharData->paramID)
-    {
-    case DS_STREAM_ID:
-        Log_info3("CCCD Change msg: %s %s: %s",
-                  (uintptr_t)"Data Service",
-                  (uintptr_t)"Stream",
-                  (uintptr_t)configValString);
-        // -------------------------
-        // Do something useful with configValue here. It tells you whether someone
-        // wants to know the state of this characteristic.
-        // ...
-        break;
-    }
-}
-
 /******************************************************************************
  *****************************************************************************
  *
@@ -1957,76 +1831,6 @@ static void ProjectZero_passcodeCb(uint8_t *pDeviceAddr,
         }
     }
     ;
-}
-
-/*********************************************************************
- * @fn      ProjectZero_DataService_ValueChangeCB
- *
- * @brief   Callback for characteristic change when a peer writes to us
- *
- * @param   connHandle - connection handle
- *          paramID - the parameter ID maps to the characteristic written to
- *          len - length of the data written
- *          pValue - pointer to the data written
- */
-static void ProjectZero_DataService_ValueChangeCB(uint16_t connHandle,
-                                                  uint8_t paramID, uint16_t len,
-                                                  uint8_t *pValue)
-{
-    // See the service header file to compare paramID with characteristic.
-    Log_info1("(CB) Data Svc Characteristic value change: paramID(%d). "
-              "Sending msg to app.", paramID);
-
-    pzCharacteristicData_t *pValChange =
-        ICall_malloc(sizeof(pzCharacteristicData_t) + len);
-
-    if(pValChange != NULL)
-    {
-        pValChange->svcUUID = DATA_SERVICE_SERV_UUID;
-        pValChange->paramID = paramID;
-        memcpy(pValChange->data, pValue, len);
-        pValChange->dataLen = len;
-
-        if(ProjectZero_enqueueMsg(PZ_SERVICE_WRITE_EVT, pValChange) != SUCCESS)
-        {
-          ICall_free(pValChange);
-        }
-    }
-}
-
-/*********************************************************************
- * @fn      ProjectZero_DataService_CfgChangeCB
- *
- * @brief   Callback for when a peer enables or disables the CCCD attribute,
- *          indicating they are interested in notifications or indications.
- *
- * @param   connHandle - connection handle
- *          paramID - the parameter ID maps to the characteristic written to
- *          len - length of the data written
- *          pValue - pointer to the data written
- */
-static void ProjectZero_DataService_CfgChangeCB(uint16_t connHandle,
-                                                uint8_t paramID, uint16_t len,
-                                                uint8_t *pValue)
-{
-    Log_info1("(CB) Data Svc Char config change paramID(%d). "
-              "Sending msg to app.", paramID);
-
-    pzCharacteristicData_t *pValChange =
-        ICall_malloc(sizeof(pzCharacteristicData_t) + len);
-
-    if(pValChange != NULL)
-    {
-        pValChange->svcUUID = DATA_SERVICE_SERV_UUID;
-        pValChange->paramID = paramID;
-        memcpy(pValChange->data, pValue, len);
-        pValChange->dataLen = len;
-
-        if(ProjectZero_enqueueMsg(PZ_SERVICE_CFG_EVT, pValChange) != SUCCESS)
-        {
-          ICall_free(pValChange);
-        }
-    }
 }
 
 /*
