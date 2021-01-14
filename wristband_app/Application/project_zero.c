@@ -75,6 +75,7 @@
 
 /* Bluetooth Profiles */
 #include <devinfoservice.h>
+#include <services/heartrate_service.h>
 
 /* Application specific includes */
 #include <Board.h>
@@ -582,6 +583,7 @@ static void ProjectZero_init(void)
     DevInfo_AddService();                      // Device Information Service
 
     // TODO: Add services to GATT server and give ID of this task for Indication acks.
+    Heartrate_service_AddService( selfEntity );
 
     // TODO: Register callbacks with the generated services that
     // can generate events (writes received) to the application
@@ -590,7 +592,11 @@ static void ProjectZero_init(void)
     uint8_t initVal[40] = {0};
     uint8_t initString[] = "This is a pretty long string, isn't it!";
 
-    // TODO: Initalization of characteristics in services that can provide data.
+    // Initialization of characteristics in heartrate_service that are readable.
+    Heartrate_service_SetParameter(HEARTRATE_SERVICE_HEARTRATEVALUE_ID, HEARTRATE_SERVICE_HEARTRATEVALUE_LEN, initVal);
+    Heartrate_service_SetParameter(HEARTRATE_SERVICE_SPO2VALUE_ID, HEARTRATE_SERVICE_SPO2VALUE_LEN, initVal);
+    Heartrate_service_SetParameter(HEARTRATE_SERVICE_STATUSVALUE_ID, HEARTRATE_SERVICE_STATUSVALUE_LEN, initVal);
+    Heartrate_service_SetParameter(HEARTRATE_SERVICE_CONFIDENCEVALUE_ID, HEARTRATE_SERVICE_CONFIDENCEVALUE_LEN, initVal);
 
     // Start Bond Manager and register callback
     VOID GAPBondMgr_Register(&ProjectZero_BondMgrCBs);
