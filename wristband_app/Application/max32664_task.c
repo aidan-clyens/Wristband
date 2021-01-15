@@ -10,8 +10,12 @@
  */
 #include <xdc/std.h>
 #include <xdc/runtime/Error.h>
+#include <ti/sysbios/BIOS.h>
+#include <ti/sysbios/knl/Semaphore.h>
 #include <ti/sysbios/knl/Task.h>
 
+#include <icall.h>
+#include <project_zero.h>
 #include <util.h>
 
 
@@ -35,11 +39,24 @@
 Task_Struct max32664Task;
 uint8_t max32664TaskStack[MAX32664_THREAD_STACK_SIZE];
 
+uint16_t heartRateValue;
+
 /*********************************************************************
  * LOCAL VARIABLES
  */
+// Entity ID globally used to check for source and/or destination of messages
+static ICall_EntityID selfEntity;
+
+// Event globally used to post local events and pend on system and
+// local events.
+static ICall_SyncHandle syncEvent;
+
+// Clocks
 static Clock_Struct heartrateClock;
 static Clock_Handle heartrateClockHandle;
+
+// Semaphores
+static Semaphore_Handle heartRateSemaphore;
 
 
 /*********************************************************************
@@ -80,6 +97,18 @@ void Max32664_createTask(void)
  */
 static void Max32664_init(void)
 {
+    // Register application with ICall
+    ICall_registerApp(&selfEntity, &syncEvent);
+
+    // Initialize variables
+    heartRateValue = 0;
+
+    // Create semaphore for heart rate value
+    Semaphore_Params semParams;
+    Semaphore_Params_init(&semParams);
+    heartRateSemaphore = Semaphore_create(0, &semParams, Error_IGNORE);
+
+    // Create clocks
     heartrateClockHandle = Util_constructClock(&heartrateClock,
                                                Max32664_heartRateSwiFxn,
                                                MAX32664_HEARTRATE_CLOCK_PERIOD,
@@ -104,7 +133,7 @@ static void Max32664_taskFxn(UArg a0, UArg a1)
     // Application main loop
     for(;;)
     {
-
+        Semaphore_pend(heartRateSemaphore, BIOS_WAIT_FOREVER);
     }
 }
 
@@ -116,5 +145,11 @@ static void Max32664_taskFxn(UArg a0, UArg a1)
  * @param   a0 - not used.
  */
 static void Max32664_heartRateSwiFxn(UArg a0) {
+    Semaphore_post(heartRateSemaphore);
+    heartRateValue++;
 
+    uint8_t data[2];
+    data[0] = heartRateValue & 0xFF;
+    data[1] = heartRateValue >> 8;
+    ProjectZero_valueChangeHandler(DATA_HEARTRATE, data);
 }

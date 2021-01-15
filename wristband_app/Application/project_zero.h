@@ -77,6 +77,11 @@ extern "C"
 /*********************************************************************
  * TYPEDEFS
  */
+// Sensor data type
+typedef enum
+{
+    DATA_HEARTRATE
+} dataType_t;
 
 /*********************************************************************
  * FUNCTIONS
@@ -86,6 +91,7 @@ extern "C"
  * Task creation function for the Project Zero.
  */
 extern void ProjectZero_createTask(void);
+extern void ProjectZero_valueChangeHandler(dataType_t type, uint8_t data[]);
 
 /*********************************************************************
 *********************************************************************/

@@ -477,6 +477,37 @@ void ProjectZero_createTask(void)
 }
 
 /*********************************************************************
+ * @fn      ProjectZero_valueChangeHandler
+ *
+ * @brief   Externally update characteristic values from sensor data.
+ */
+void ProjectZero_valueChangeHandler(dataType_t type, uint8_t data[])
+{
+    pzCharacteristicData_t *charData = ICall_malloc(sizeof(pzCharacteristicData_t));
+
+    if(charData != NULL)
+    {
+        switch (type)
+        {
+        case DATA_HEARTRATE:
+            charData->svcUUID = HEARTRATE_SERVICE_HEARTRATEVALUE_UUID;
+            charData->paramID = HEARTRATE_SERVICE_HEARTRATEVALUE_ID;
+            charData->dataLen = HEARTRATE_SERVICE_HEARTRATEVALUE_LEN;
+            memcpy(charData->data, data, charData->dataLen);
+            break;
+        default:
+            ICall_free(charData);
+            return;
+        }
+
+        if(ProjectZero_enqueueMsg(PZ_UPDATE_CHARVAL_EVT, charData) != SUCCESS)
+        {
+          ICall_free(charData);
+        }
+    }
+}
+
+/*********************************************************************
  * @fn      ProjectZero_init
  *
  * @brief   Called during initialization and contains application
