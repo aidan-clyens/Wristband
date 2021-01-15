@@ -12,12 +12,16 @@
 #include <xdc/runtime/Error.h>
 #include <ti/sysbios/knl/Task.h>
 
+#include <util.h>
+
 
 /*********************************************************************
  * CONSTANTS
  */
 #define MAX32664_THREAD_STACK_SIZE      1024
 #define MAX32664_TASK_PRIORITY          1
+
+#define MAX32664_HEARTRATE_CLOCK_PERIOD     30*1000
 
 
 /*********************************************************************
@@ -34,12 +38,17 @@ uint8_t max32664TaskStack[MAX32664_THREAD_STACK_SIZE];
 /*********************************************************************
  * LOCAL VARIABLES
  */
+static Clock_Struct heartrateClock;
+static Clock_Handle heartrateClockHandle;
 
 
 /*********************************************************************
  * LOCAL FUNCTIONS
  */
+static void Max32664_init(void);
 static void Max32664_taskFxn(UArg a0, UArg a1);
+
+static void Max32664_heartRateSwiFxn(UArg a0);
 
 
 /*********************************************************************
@@ -65,6 +74,22 @@ void Max32664_createTask(void)
 }
 
 /*********************************************************************
+ * @fn      Max32664_init
+ *
+ * @brief   Initialization for Max32664 task.
+ */
+static void Max32664_init(void)
+{
+    heartrateClockHandle = Util_constructClock(&heartrateClock,
+                                               Max32664_heartRateSwiFxn,
+                                               MAX32664_HEARTRATE_CLOCK_PERIOD,
+                                               MAX32664_HEARTRATE_CLOCK_PERIOD,
+                                               1,
+                                               NULL
+                                               );
+}
+
+/*********************************************************************
  * @fn      Max32664_taskFxn
  *
  * @brief   Application task entry point for the Max32664 Biometric Sensor Hub.
@@ -73,5 +98,23 @@ void Max32664_createTask(void)
  */
 static void Max32664_taskFxn(UArg a0, UArg a1)
 {
+    // Application initialization
+    Max32664_init();
+
+    // Application main loop
+    for(;;)
+    {
+
+    }
+}
+
+/*********************************************************************
+ * @fn      Max32664_heartRateSwiFxn
+ *
+ * @brief   Callback for Heart Rate value update.
+ *
+ * @param   a0 - not used.
+ */
+static void Max32664_heartRateSwiFxn(UArg a0) {
 
 }
