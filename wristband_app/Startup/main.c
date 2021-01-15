@@ -65,6 +65,7 @@
 #include "hal_assert.h"
 #include "bcomdef.h"
 #include "project_zero.h"
+#include "max32664_task.h"
 
 #ifndef USE_DEFAULT_USER_CFG
 #include "ble_user_config.h"
@@ -146,6 +147,7 @@ int main()
     ICall_createRemoteTasks();
 
     ProjectZero_createTask();
+    Max32664_createTask();
 
     /* enable interrupts and start SYS/BIOS */
     BIOS_start();
