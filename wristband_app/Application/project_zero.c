@@ -376,6 +376,7 @@ static void ProjectZero_processCmdCompleteEvt(hciEvt_CmdComplete_t *pMsg);
 static void ProjectZero_processAdvEvent(pzGapAdvEventData_t *pEventData);
 
 /* Profile value change handlers */
+static void ProjectZero_updateCharVal(pzCharacteristicData_t *pCharData);
 // TODO
 
 /* Stack or profile callback function */
@@ -848,6 +849,7 @@ static void ProjectZero_processApplicationMessage(pzMsg_t *pMsg)
           break;
 
       case PZ_UPDATE_CHARVAL_EVT: /* Message from ourselves to send  */
+          ProjectZero_updateCharVal(pCharData);
           break;
 
       case PZ_BUTTON_DEBOUNCED_EVT: /* Message from swi about pin change */
@@ -2008,6 +2010,25 @@ static status_t ProjectZero_enqueueMsg(uint8_t event, void *pData)
     }
 
     return(bleMemAllocError);
+}
+
+/*
+ * @brief  Convenience function for updating characteristic data via pzCharacteristicData_t
+ *         structured message.
+ *
+ * @note   Must run in Task context in case BLE Stack APIs are invoked.
+ *
+ * @param  *pCharData  Pointer to struct with value to update.
+ */
+static void ProjectZero_updateCharVal(pzCharacteristicData_t *pCharData)
+{
+    switch(pCharData->svcUUID)
+    {
+    case HEARTRATE_SERVICE_HEARTRATEVALUE_UUID:
+        Heartrate_service_SetParameter(pCharData->paramID, pCharData->dataLen,
+                                        pCharData->data);
+        break;
+    }
 }
 
 /*********************************************************************
