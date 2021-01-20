@@ -13,6 +13,12 @@
 #include <ti/sysbios/BIOS.h>
 #include <ti/sysbios/knl/Semaphore.h>
 #include <ti/sysbios/knl/Task.h>
+#include <ti/drivers/GPIO.h>
+#include <ti/drivers/I2C.h>
+
+#include <uartlog/UartLog.h>
+
+#include <Board.h>
 
 #include <icall.h>
 #include <project_zero.h>
@@ -26,6 +32,8 @@
 #define MAX32664_TASK_PRIORITY          1
 
 #define MAX32664_HEARTRATE_CLOCK_PERIOD     30*1000
+
+#define MAX32664_I2C_ADDRESS        1
 
 
 /*********************************************************************
@@ -51,6 +59,12 @@ static ICall_EntityID selfEntity;
 // local events.
 static ICall_SyncHandle syncEvent;
 
+// I2C
+static I2C_Handle i2cHandle;
+static I2C_Transaction transaction;
+static uint8_t txBuffer[1];
+static uint8_t rxBuffer[2];
+
 // Clocks
 static Clock_Struct heartrateClock;
 static Clock_Handle heartrateClockHandle;
@@ -66,6 +80,8 @@ static void Max32664_init(void);
 static void Max32664_taskFxn(UArg a0, UArg a1);
 
 static void Max32664_heartRateSwiFxn(UArg a0);
+
+static void Max32664_i2cInit(void);
 
 
 /*********************************************************************
@@ -100,13 +116,19 @@ static void Max32664_init(void)
     // Register application with ICall
     ICall_registerApp(&selfEntity, &syncEvent);
 
+    // Initialize GPIO
+    GPIO_init();
+
     // Initialize variables
     heartRateValue = 0;
 
-    // Create semaphore for heart rate value
-    Semaphore_Params semParams;
-    Semaphore_Params_init(&semParams);
-    heartRateSemaphore = Semaphore_create(0, &semParams, Error_IGNORE);
+    // Create semaphores
+    Semaphore_Params semParamsHeartRate;
+    Semaphore_Params_init(&semParamsHeartRate);
+    heartRateSemaphore = Semaphore_create(0, &semParamsHeartRate, Error_IGNORE);
+
+    // Initialize I2C connection
+    Max32664_i2cInit();
 
     // Create clocks
     heartrateClockHandle = Util_constructClock(&heartrateClock,
@@ -134,7 +156,41 @@ static void Max32664_taskFxn(UArg a0, UArg a1)
     for(;;)
     {
         Semaphore_pend(heartRateSemaphore, BIOS_WAIT_FOREVER);
+        Log_info1("Read Heart Rate: %d", heartRateValue);
     }
+}
+
+/*********************************************************************
+ * @fn      Max32664_i2cInit
+ *
+ * @brief   Initialization the master I2C connection with the Biometric Sensor Hub.
+ */
+static void Max32664_i2cInit(void)
+{
+    I2C_Params i2cParams;
+
+    I2C_init();
+
+    // Configure I2C
+    I2C_Params_init(&i2cParams);
+    i2cParams.bitRate = I2C_400kHz;
+    i2cHandle = I2C_open(Board_I2C_TMP, &i2cParams);
+    if (i2cHandle == NULL) {
+        Log_error0("I2C initialization failed!");
+        Task_exit();
+    }
+    Log_info0("I2C initialized");
+
+    transaction.writeBuf = txBuffer;
+    transaction.writeCount = 1;
+    transaction.readBuf = rxBuffer;
+    transaction.readCount = 2;
+    transaction.slaveAddress = MAX32664_I2C_ADDRESS;
+    if (!I2C_transfer(i2cHandle, &transaction)) {
+        Log_error0("MAX32664 sensor not found");
+        Task_exit();
+    }
+    Log_info0("MAX32664 sensor found");
 }
 
 /*********************************************************************
