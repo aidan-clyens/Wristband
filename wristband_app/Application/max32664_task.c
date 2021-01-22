@@ -38,7 +38,8 @@
 #define MAX32664_I2C_CMD_DELAY      6
 
 // Family names
-#define MAX32664_READ_OUTPUT_MODE    0x11
+#define MAX32664_READ_SENSOR_HUB_STATUS     0x00
+#define MAX32664_READ_OUTPUT_MODE           0x11
 
 
 
@@ -88,6 +89,7 @@ static void Max32664_taskFxn(UArg a0, UArg a1);
 
 static void Max32664_heartRateSwiFxn(UArg a0);
 
+static uint8_t Max32664_readSensorHubStatus(void);
 static uint8_t Max32664_readOutputMode(void);
 
 static void Max32664_i2cInit(void);
@@ -179,6 +181,36 @@ static void Max32664_taskFxn(UArg a0, UArg a1)
 }
 
 /*********************************************************************
+ * @fn      Max32664_readSensorHubStatus
+ *
+ * @brief   Read current status of the Biometric Sensor Hub.
+ */
+static uint8_t Max32664_readSensorHubStatus(void)
+{
+    uint8_t familyByte = MAX32664_READ_SENSOR_HUB_STATUS;
+    uint8_t indexByte = 0x00;
+    uint8_t ret = 0xFF;
+
+    Max32664_i2cBeginTransmission(MAX32664_I2C_ADDRESS);
+    Max32664_i2cWrite(familyByte);
+    Max32664_i2cWrite(indexByte);
+    Max32664_i2cEndTransmission();
+
+    Task_sleep(MAX32664_I2C_CMD_DELAY * (1000 / Clock_tickPeriod));
+
+    Max32664_i2cBeginTransmission(MAX32664_I2C_ADDRESS);
+    Max32664_i2cReadRequest(1);
+    Max32664_i2cEndTransmission();
+
+    if (Max32664_i2cAvailable()) {
+        ret = Max32664_i2cRead();
+    }
+
+    return ret;
+}
+
+
+/*********************************************************************
  * @fn      Max32664_readOutputMode
  *
  * @brief   Read current output mode of the Biometric Sensor Hub.
@@ -231,13 +263,13 @@ static void Max32664_i2cInit(void)
     Log_info0("I2C initialized");
 
     // Read test
-    Max32664_i2cBeginTransmission(MAX32664_I2C_ADDRESS);
-    Max32664_i2cReadRequest(1);
-    Max32664_i2cEndTransmission();
-
-    while (Max32664_i2cAvailable()) {
-        uint8_t data = Max32664_i2cRead();
-        Log_info1("Read: %d", data);
+    uint8_t status = Max32664_readSensorHubStatus();
+    if (status != 0) {
+        Log_error0("MAX32644 not connected");
+    }
+    else
+    {
+        Log_info0("MAX32664 connected successfully");
     }
 }
 
