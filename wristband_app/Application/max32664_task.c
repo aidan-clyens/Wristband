@@ -37,6 +37,10 @@
 #define MAX32664_BUFFER_SIZE        32
 #define MAX32664_I2C_CMD_DELAY      6
 
+// Family names
+#define MAX32664_READ_OUTPUT_MODE    0x11
+
+
 
 /*********************************************************************
  * TYPEDEFS
@@ -83,6 +87,8 @@ static void Max32664_init(void);
 static void Max32664_taskFxn(UArg a0, UArg a1);
 
 static void Max32664_heartRateSwiFxn(UArg a0);
+
+static uint8_t Max32664_readOutputMode(void);
 
 static void Max32664_i2cInit(void);
 static void Max32664_i2cBeginTransmission(uint8_t address);
@@ -147,6 +153,9 @@ static void Max32664_init(void)
                                                1,
                                                NULL
                                                );
+
+    uint8_t outputMode = Max32664_readOutputMode();
+    Log_info1("MAX32664 Output Mode: %d", outputMode);
 }
 
 /*********************************************************************
@@ -168,6 +177,36 @@ static void Max32664_taskFxn(UArg a0, UArg a1)
         Log_info1("Read Heart Rate: %d", heartRateValue);
     }
 }
+
+/*********************************************************************
+ * @fn      Max32664_readOutputMode
+ *
+ * @brief   Read current output mode of the Biometric Sensor Hub.
+ */
+static uint8_t Max32664_readOutputMode(void)
+{
+    uint8_t familyByte = MAX32664_READ_OUTPUT_MODE;
+    uint8_t indexByte = 0x00;
+    uint8_t ret = 0xFF;
+
+    Max32664_i2cBeginTransmission(MAX32664_I2C_ADDRESS);
+    Max32664_i2cWrite(familyByte);
+    Max32664_i2cWrite(indexByte);
+    Max32664_i2cEndTransmission();
+
+    Task_sleep(MAX32664_I2C_CMD_DELAY * (1000 / Clock_tickPeriod));
+
+    Max32664_i2cBeginTransmission(MAX32664_I2C_ADDRESS);
+    Max32664_i2cReadRequest(1);
+    Max32664_i2cEndTransmission();
+
+    if (Max32664_i2cAvailable()) {
+        ret = Max32664_i2cRead();
+    }
+
+    return ret;
+}
+
 
 /*********************************************************************
  * @fn      Max32664_i2cInit
