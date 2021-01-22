@@ -33,7 +33,9 @@
 
 #define MAX32664_HEARTRATE_CLOCK_PERIOD     30*1000
 
-#define MAX32664_I2C_ADDRESS        1
+#define MAX32664_I2C_ADDRESS        0xAA
+#define MAX32664_BUFFER_SIZE        32
+#define MAX32664_I2C_CMD_DELAY      6
 
 
 /*********************************************************************
@@ -62,8 +64,9 @@ static ICall_SyncHandle syncEvent;
 // I2C
 static I2C_Handle i2cHandle;
 static I2C_Transaction transaction;
-static uint8_t txBuffer[1];
-static uint8_t rxBuffer[2];
+static uint8_t txBuffer[MAX32664_BUFFER_SIZE];
+static uint8_t rxBuffer[MAX32664_BUFFER_SIZE];
+static int rxIndex;
 
 // Clocks
 static Clock_Struct heartrateClock;
@@ -82,6 +85,12 @@ static void Max32664_taskFxn(UArg a0, UArg a1);
 static void Max32664_heartRateSwiFxn(UArg a0);
 
 static void Max32664_i2cInit(void);
+static void Max32664_i2cBeginTransmission(uint8_t address);
+static void Max32664_i2cEndTransmission(void);
+static void Max32664_i2cReadRequest(int num_bytes);
+static void Max32664_i2cWrite(uint8_t data);
+static uint8_t Max32664_i2cRead(void);
+static bool Max32664_i2cAvailable(void);
 
 
 /*********************************************************************
@@ -168,6 +177,7 @@ static void Max32664_taskFxn(UArg a0, UArg a1)
 static void Max32664_i2cInit(void)
 {
     I2C_Params i2cParams;
+    rxIndex = 0;
 
     I2C_init();
 
@@ -181,16 +191,97 @@ static void Max32664_i2cInit(void)
     }
     Log_info0("I2C initialized");
 
-    transaction.writeBuf = txBuffer;
-    transaction.writeCount = 1;
-    transaction.readBuf = rxBuffer;
-    transaction.readCount = 2;
-    transaction.slaveAddress = MAX32664_I2C_ADDRESS;
-    if (!I2C_transfer(i2cHandle, &transaction)) {
-        Log_error0("MAX32664 sensor not found");
-        Task_exit();
+    // Read test
+    Max32664_i2cBeginTransmission(MAX32664_I2C_ADDRESS);
+    Max32664_i2cReadRequest(1);
+    Max32664_i2cEndTransmission();
+
+    while (Max32664_i2cAvailable()) {
+        uint8_t data = Max32664_i2cRead();
+        Log_info1("Read: %d", data);
     }
-    Log_info0("MAX32664 sensor found");
+}
+
+/*********************************************************************
+ * @fn      Max32664_i2cBeginTransmission
+ *
+ * @brief   Begin I2C data transmission.
+ *
+ * @param   address - Address of slave device.
+ */
+static void Max32664_i2cBeginTransmission(uint8_t address)
+{
+    transaction.writeBuf = txBuffer;
+    transaction.readBuf = rxBuffer;
+    transaction.readCount = 0;
+    transaction.writeCount = 0;
+    transaction.slaveAddress = address;
+}
+
+/*********************************************************************
+ * @fn      Max32664_i2cEndTransmission
+ *
+ * @brief   End I2C data transmission.
+ */
+static void Max32664_i2cEndTransmission(void)
+{
+    if (!I2C_transfer(i2cHandle, &transaction))
+    {
+        Log_error0("I2C transaction failed");
+    }
+    else
+    {
+        Log_info0("I2C transaction successful");
+    }
+
+    transaction.writeCount = 0;
+}
+
+/*********************************************************************
+ * @fn      Max32664_i2cWrite
+ *
+ * @brief   Write a byte to transmit over I2C.
+ */
+static void Max32664_i2cWrite(uint8_t data)
+{
+    txBuffer[transaction.writeCount] = data;
+    transaction.writeCount++;
+}
+
+/*********************************************************************
+ * @fn      Max32664_i2cWrite
+ *
+ * @brief   Write a byte to transmit over I2C.
+ */
+static void Max32664_i2cReadRequest(int num_bytes)
+{
+    transaction.readCount = num_bytes;
+}
+
+/*********************************************************************
+ * @fn      Max32664_i2cRead
+ *
+ * @brief   Read a byte to over I2C.
+ */
+static uint8_t Max32664_i2cRead(void)
+{
+    uint8_t data = -1;
+    if (transaction.readCount > 0) {
+        data = rxBuffer[transaction.readCount-1];
+        transaction.readCount--;
+    }
+
+    return data;
+}
+
+/*********************************************************************
+ * @fn      Max32664_i2cAvailable
+ *
+ * @brief   Check if data has been received over I2C.
+ */
+static bool Max32664_i2cAvailable(void)
+{
+    return (transaction.readCount > 0);
 }
 
 /*********************************************************************
