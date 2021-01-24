@@ -28,11 +28,13 @@
 /*********************************************************************
  * CONSTANTS
  */
+// Task
 #define MAX32664_THREAD_STACK_SIZE      1024
 #define MAX32664_TASK_PRIORITY          1
 
 #define MAX32664_HEARTRATE_CLOCK_PERIOD     30*1000
 
+// I2C
 #define MAX32664_I2C_ADDRESS        0xAA
 #define MAX32664_BUFFER_SIZE        32
 #define MAX32664_I2C_CMD_DELAY      6
@@ -84,17 +86,21 @@ static Semaphore_Handle heartRateSemaphore;
 /*********************************************************************
  * LOCAL FUNCTIONS
  */
+// Task functions
 static void Max32664_init(void);
 static void Max32664_taskFxn(UArg a0, UArg a1);
 
 static void Max32664_heartRateSwiFxn(UArg a0);
 
+// MAX32664 commands
+static void Max32664_initApplicationMode();
 static uint8_t Max32664_readSensorHubStatus(void);
 static uint8_t Max32664_readOutputMode(void);
 
+// I2C functions
 static void Max32664_i2cInit(void);
 static void Max32664_i2cBeginTransmission(uint8_t address);
-static void Max32664_i2cEndTransmission(void);
+static bool Max32664_i2cEndTransmission(void);
 static void Max32664_i2cReadRequest(int num_bytes);
 static void Max32664_i2cWrite(uint8_t data);
 static uint8_t Max32664_i2cRead(void);
@@ -135,6 +141,8 @@ static void Max32664_init(void)
 
     // Initialize GPIO
     GPIO_init();
+    GPIO_setConfig(Board_GPIO_MAX32664_MFIO, GPIO_CFG_OUT_STD | GPIO_CFG_OUT_LOW);
+    GPIO_setConfig(Board_GPIO_MAX32664_RESET, GPIO_CFG_OUT_STD | GPIO_CFG_OUT_HIGH);
 
     // Initialize variables
     heartRateValue = 0;
@@ -145,6 +153,7 @@ static void Max32664_init(void)
     heartRateSemaphore = Semaphore_create(0, &semParamsHeartRate, Error_IGNORE);
 
     // Initialize I2C connection
+    Max32664_initApplicationMode();
     Max32664_i2cInit();
 
     // Create clocks
@@ -155,9 +164,6 @@ static void Max32664_init(void)
                                                1,
                                                NULL
                                                );
-
-    uint8_t outputMode = Max32664_readOutputMode();
-    Log_info1("MAX32664 Output Mode: %d", outputMode);
 }
 
 /*********************************************************************
@@ -181,6 +187,29 @@ static void Max32664_taskFxn(UArg a0, UArg a1)
 }
 
 /*********************************************************************
+ * @fn      Max32664_initApplicationMode
+ *
+ * @brief   Initialize the Biometric Sensor Hub in Application Mode.
+ */
+static void Max32664_initApplicationMode()
+{
+    GPIO_write(Board_GPIO_MAX32664_RESET, GPIO_CFG_OUT_LOW);
+    GPIO_write(Board_GPIO_MAX32664_MFIO, GPIO_CFG_OUT_HIGH);
+
+    // Delay for 20 ms
+    Task_sleep(20 * (1000 / Clock_tickPeriod));
+
+    GPIO_write(Board_GPIO_MAX32664_RESET, GPIO_CFG_OUT_HIGH);
+    GPIO_write(Board_GPIO_MAX32664_MFIO, GPIO_CFG_OUT_LOW);
+
+    // Delay for 1 s
+    Task_sleep(1100 * (1000 / Clock_tickPeriod));
+
+    Log_info0("Initialized MAX32664 in Application Mode");
+}
+
+
+/*********************************************************************
  * @fn      Max32664_readSensorHubStatus
  *
  * @brief   Read current status of the Biometric Sensor Hub.
@@ -190,17 +219,20 @@ static uint8_t Max32664_readSensorHubStatus(void)
     uint8_t familyByte = MAX32664_READ_SENSOR_HUB_STATUS;
     uint8_t indexByte = 0x00;
     uint8_t ret = 0xFF;
+    bool success = false;
 
     Max32664_i2cBeginTransmission(MAX32664_I2C_ADDRESS);
     Max32664_i2cWrite(familyByte);
     Max32664_i2cWrite(indexByte);
-    Max32664_i2cEndTransmission();
+    success = Max32664_i2cEndTransmission();
+    if (!success) return ret;
 
     Task_sleep(MAX32664_I2C_CMD_DELAY * (1000 / Clock_tickPeriod));
 
     Max32664_i2cBeginTransmission(MAX32664_I2C_ADDRESS);
     Max32664_i2cReadRequest(1);
-    Max32664_i2cEndTransmission();
+    success = Max32664_i2cEndTransmission();
+    if (!success) return ret;
 
     if (Max32664_i2cAvailable()) {
         ret = Max32664_i2cRead();
@@ -220,17 +252,20 @@ static uint8_t Max32664_readOutputMode(void)
     uint8_t familyByte = MAX32664_READ_OUTPUT_MODE;
     uint8_t indexByte = 0x00;
     uint8_t ret = 0xFF;
+    bool success = false;
 
     Max32664_i2cBeginTransmission(MAX32664_I2C_ADDRESS);
     Max32664_i2cWrite(familyByte);
     Max32664_i2cWrite(indexByte);
-    Max32664_i2cEndTransmission();
+    success = Max32664_i2cEndTransmission();
+    if (!success) return ret;
 
     Task_sleep(MAX32664_I2C_CMD_DELAY * (1000 / Clock_tickPeriod));
 
     Max32664_i2cBeginTransmission(MAX32664_I2C_ADDRESS);
     Max32664_i2cReadRequest(1);
-    Max32664_i2cEndTransmission();
+    success = Max32664_i2cEndTransmission();
+    if (!success) return ret;
 
     if (Max32664_i2cAvailable()) {
         ret = Max32664_i2cRead();
@@ -294,18 +329,23 @@ static void Max32664_i2cBeginTransmission(uint8_t address)
  *
  * @brief   End I2C data transmission.
  */
-static void Max32664_i2cEndTransmission(void)
+static bool Max32664_i2cEndTransmission(void)
 {
+    bool ret;
     if (!I2C_transfer(i2cHandle, &transaction))
     {
         Log_error0("I2C transaction failed");
+        ret = false;
     }
     else
     {
         Log_info0("I2C transaction successful");
+        ret = true;
     }
 
     transaction.writeCount = 0;
+
+    return ret;
 }
 
 /*********************************************************************
