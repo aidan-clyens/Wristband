@@ -77,6 +77,7 @@ typedef enum {
 Task_Struct max32664Task;
 uint8_t max32664TaskStack[MAX32664_THREAD_STACK_SIZE];
 
+bool heartRateAlgorithmInitialized = false;
 uint16_t heartRateValue;
 
 /*********************************************************************
@@ -210,7 +211,18 @@ static void Max32664_taskFxn(UArg a0, UArg a1)
     for(;;)
     {
         Semaphore_pend(heartRateSemaphore, BIOS_WAIT_FOREVER);
-        Log_info1("Read Heart Rate: %d", heartRateValue);
+        if (heartRateAlgorithmInitialized) {
+            // TODO: Read heart rate from MAX32664
+            heartRateValue++;
+
+            // Pass message containing heart rate value to the BLE task
+            uint8_t data[2];
+            data[0] = heartRateValue & 0xFF;
+            data[1] = heartRateValue >> 8;
+            ProjectZero_valueChangeHandler(DATA_HEARTRATE, data);
+
+            Log_info1("Read Heart Rate: %d", heartRateValue);
+        }
     }
 }
 
@@ -291,7 +303,8 @@ static void Max32664_initHeartRateAlgorithm()
     }
     Log_info0("Enable MaximFast algorithm");
 
-    // TODO: Configure number of samples
+    heartRateAlgorithmInitialized = true;
+    Log_info0("MAX32664 Heart Rate Algorithm configured");
 }
 
 
@@ -679,10 +692,4 @@ static bool Max32664_i2cAvailable(void)
  */
 static void Max32664_heartRateSwiFxn(UArg a0) {
     Semaphore_post(heartRateSemaphore);
-    heartRateValue++;
-
-    uint8_t data[2];
-    data[0] = heartRateValue & 0xFF;
-    data[1] = heartRateValue >> 8;
-    ProjectZero_valueChangeHandler(DATA_HEARTRATE, data);
 }
