@@ -108,6 +108,7 @@ static void Max32664_initHeartRateAlgorithm();
 static uint8_t Max32664_readSensorHubStatus(void);
 static uint8_t Max32664_setOutputMode(uint8_t output_mode);
 static uint8_t Max32664_readOutputMode(uint8_t *data);
+static uint8_t Max32664_setFifoInterruptThreshold(uint8_t threshold);
 
 // I2C functions
 static void Max32664_i2cInit(void);
@@ -238,15 +239,14 @@ static void Max32664_initHeartRateAlgorithm()
     }
     Log_info0("Set output mode to Algorithm Data");
 
-    output_mode_t output;
-    ret = Max32664_readOutputMode(&output);
+    // Set FIFO threshold for interrupt to be triggered
+    uint8_t threshold = 0x01;
+    ret = Max32664_setFifoInterruptThreshold(threshold);
     if (ret != 0) {
-        Log_error0("Error getting output mode");
+        Log_error0("Error setting FIFO interrupt threshold");
         return;
     }
-    Log_info1("Get output mode: %d", output);
-
-    // TODO: Set FIFO threshold for interrupt to be triggered
+    Log_info1("Set FIFO interrupt threshold to: %d", threshold);
 
     // TODO: AGC algo control
 
@@ -356,6 +356,42 @@ static uint8_t Max32664_readOutputMode(uint8_t *data)
     }
 
     return 0x0;
+}
+
+/*********************************************************************
+ * @fn      Max32664_setFifoInterruptThreshold
+ *
+ * @brief   Set the number of samples required in the Biometric Sensor Hub FIFO to trigger an interrupt.
+ *
+ * @param   Interrupt threshold for FIFO (number of samples)
+ */
+static uint8_t Max32664_setFifoInterruptThreshold(uint8_t threshold)
+{
+    uint8_t familyByte = MAX32664_SET_OUTPUT_MODE;
+    uint8_t indexByte = 0x01;
+    uint8_t ret = 0xFF;
+    bool success = false;
+
+    // Update FIFO interrupt threshold
+    Max32664_i2cBeginTransmission(MAX32664_I2C_ADDRESS);
+    Max32664_i2cWrite(familyByte);
+    Max32664_i2cWrite(indexByte);
+    Max32664_i2cWrite(threshold);
+    success = Max32664_i2cEndTransmission();
+    if (!success) return ret;
+
+    // Read status
+    Max32664_i2cBeginTransmission(MAX32664_I2C_ADDRESS);
+    Max32664_i2cReadRequest(1);
+    success = Max32664_i2cEndTransmission();
+    if (!success) return ret;
+
+    if (Max32664_i2cAvailable()) {
+        ret = Max32664_i2cRead();
+    }
+
+
+    return ret;
 }
 
 
