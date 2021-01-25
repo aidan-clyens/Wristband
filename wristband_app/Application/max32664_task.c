@@ -44,7 +44,11 @@
 #define MAX32664_READ_SENSOR_HUB_STATUS     0x00
 #define MAX32664_SET_OUTPUT_MODE            0x10
 #define MAX32664_READ_OUTPUT_MODE           0x11
+#define MAX32664_SENSOR_MODE_ENABLE         0x44
 #define MAX32664_ALGORITHM_MODE_ENABLE      0x52
+
+// Sensors
+#define MAX32664_MAX86141_ENABLE            0x00
 
 
 /*********************************************************************
@@ -113,6 +117,7 @@ static uint8_t Max32664_setOutputMode(uint8_t output_mode);
 static uint8_t Max32664_readOutputMode(uint8_t *data);
 static uint8_t Max32664_setFifoInterruptThreshold(uint8_t threshold);
 static uint8_t Max32664_enableAutoGainControlAlgorithm(uint8_t enable);
+static uint8_t Max32664_enableMax86141Sensor(uint8_t enable);
 
 // I2C functions
 static void Max32664_i2cInit(void);
@@ -233,6 +238,7 @@ static void Max32664_initApplicationMode()
  */
 static void Max32664_initHeartRateAlgorithm()
 {
+    uint8_t enable;
     uint8_t ret = 0xFF;
 
     // Set output mode to Algorithm Data
@@ -253,7 +259,7 @@ static void Max32664_initHeartRateAlgorithm()
     Log_info1("Set FIFO interrupt threshold to: %d", threshold);
 
     // Enable Automatic Gain Control algorithm
-    uint8_t enable = 0x01;
+    enable = 0x01;
     ret = Max32664_enableAutoGainControlAlgorithm(enable);
     if (ret != 0) {
         Log_error0("Error enabling Automatic Gain Control algorithm");
@@ -261,7 +267,14 @@ static void Max32664_initHeartRateAlgorithm()
     }
     Log_info0("Enable Automatic Gain Control algorithm");
 
-    // TODO: Enable MAX86141 sensor
+    // Enable MAX86141 sensor
+    enable = 0x01;
+    ret = Max32664_enableMax86141Sensor(enable);
+    if (ret != 0) {
+        Log_error0("Error enabling MAX86141 sensor");
+        return;
+    }
+    Log_info0("Enable MAX86141 sensor");
 
     // TODO: Fast algo control
 
@@ -445,6 +458,45 @@ static uint8_t Max32664_enableAutoGainControlAlgorithm(uint8_t enable)
 
     return ret;
 }
+
+/*********************************************************************
+ * @fn      Max32664_enableMax86141Sensor
+ *
+ * @brief   Enable or disable the MAX86141 on the Biometric Sensor Hub.
+ *
+ * @param   Enable or Disable
+ */
+static uint8_t Max32664_enableMax86141Sensor(uint8_t enable)
+{
+    uint8_t familyByte = MAX32664_SENSOR_MODE_ENABLE;
+    uint8_t indexByte = MAX32664_MAX86141_ENABLE;
+    uint8_t ret = 0xFF;
+    bool success = false;
+
+    // Enable MAX86141 sensor
+    Max32664_i2cBeginTransmission(MAX32664_I2C_ADDRESS);
+    Max32664_i2cWrite(familyByte);
+    Max32664_i2cWrite(indexByte);
+    Max32664_i2cWrite(enable);
+    success = Max32664_i2cEndTransmission();
+    if (!success) return ret;
+
+    // Wait for enable value to update
+    Task_sleep(MAX32664_ENABLE_CMD_DELAY * (1000 / Clock_tickPeriod));
+
+    // Read status
+    Max32664_i2cBeginTransmission(MAX32664_I2C_ADDRESS);
+    Max32664_i2cReadRequest(1);
+    success = Max32664_i2cEndTransmission();
+    if (!success) return ret;
+
+    if (Max32664_i2cAvailable()) {
+        ret = Max32664_i2cRead();
+    }
+
+    return ret;
+}
+
 
 
 /*********************************************************************
