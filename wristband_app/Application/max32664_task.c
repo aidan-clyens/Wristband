@@ -50,6 +50,10 @@
 // Sensors
 #define MAX32664_MAX86141_ENABLE            0x00
 
+// Algorithms
+#define MAX32664_AGC_ALGORITHM              0x00
+#define MAX32664_MAXIM_FAST_ALGORITHM       0x02
+
 
 /*********************************************************************
  * TYPEDEFS
@@ -117,6 +121,7 @@ static uint8_t Max32664_setOutputMode(uint8_t output_mode);
 static uint8_t Max32664_readOutputMode(uint8_t *data);
 static uint8_t Max32664_setFifoInterruptThreshold(uint8_t threshold);
 static uint8_t Max32664_enableAutoGainControlAlgorithm(uint8_t enable);
+static uint8_t Max32664_enableMaximFastAlgorithm(uint8_t enableMode);
 static uint8_t Max32664_enableMax86141Sensor(uint8_t enable);
 
 // I2C functions
@@ -276,7 +281,15 @@ static void Max32664_initHeartRateAlgorithm()
     }
     Log_info0("Enable MAX86141 sensor");
 
-    // TODO: Fast algo control
+    // Enable WHRM, MaximFast algorithm
+    // TODO: Investigate algorithm modes (1 or 2)
+    enable = 0x01;
+    ret = Max32664_enableMaximFastAlgorithm(enable);
+    if (ret != 0) {
+        Log_error0("Error enabling MaximFast algorithm");
+        return;
+    }
+    Log_info0("Enable MaximFast algorithm");
 
     // TODO: Configure number of samples
 }
@@ -431,7 +444,7 @@ static uint8_t Max32664_setFifoInterruptThreshold(uint8_t threshold)
 static uint8_t Max32664_enableAutoGainControlAlgorithm(uint8_t enable)
 {
     uint8_t familyByte = MAX32664_ALGORITHM_MODE_ENABLE;
-    uint8_t indexByte = 0x00;
+    uint8_t indexByte = MAX32664_AGC_ALGORITHM;
     uint8_t ret = 0xFF;
     bool success = false;
 
@@ -445,6 +458,44 @@ static uint8_t Max32664_enableAutoGainControlAlgorithm(uint8_t enable)
 
     // Wait for enable value to update
     Task_sleep(MAX32664_ENABLE_CMD_DELAY * (1000 / Clock_tickPeriod));
+
+    // Read status
+    Max32664_i2cBeginTransmission(MAX32664_I2C_ADDRESS);
+    Max32664_i2cReadRequest(1);
+    success = Max32664_i2cEndTransmission();
+    if (!success) return ret;
+
+    if (Max32664_i2cAvailable()) {
+        ret = Max32664_i2cRead();
+    }
+
+    return ret;
+}
+
+/*********************************************************************
+ * @fn      Max32664_enableMaximFastAlgorithm
+ *
+ * @brief   Enable or disable the MaximFast algorithm on the Biometric Sensor Hub.
+ *
+ * @param   Enable Mode or Disable
+ */
+static uint8_t Max32664_enableMaximFastAlgorithm(uint8_t enableMode)
+{
+    uint8_t familyByte = MAX32664_ALGORITHM_MODE_ENABLE;
+    uint8_t indexByte = MAX32664_MAXIM_FAST_ALGORITHM;
+    uint8_t ret = 0xFF;
+    bool success = false;
+
+    // Enable MaximFast algorithm
+    Max32664_i2cBeginTransmission(MAX32664_I2C_ADDRESS);
+    Max32664_i2cWrite(familyByte);
+    Max32664_i2cWrite(indexByte);
+    Max32664_i2cWrite(enableMode);
+    success = Max32664_i2cEndTransmission();
+    if (!success) return ret;
+
+    // Wait for enable value to update
+    Task_sleep(2 * MAX32664_ENABLE_CMD_DELAY * (1000 / Clock_tickPeriod));
 
     // Read status
     Max32664_i2cBeginTransmission(MAX32664_I2C_ADDRESS);
