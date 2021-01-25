@@ -38,16 +38,19 @@
 #define MAX32664_I2C_ADDRESS        0xAA
 #define MAX32664_BUFFER_SIZE        32
 #define MAX32664_I2C_CMD_DELAY      6
+#define MAX32664_ENABLE_CMD_DELAY   22
 
 // Family names
 #define MAX32664_READ_SENSOR_HUB_STATUS     0x00
 #define MAX32664_SET_OUTPUT_MODE            0x10
 #define MAX32664_READ_OUTPUT_MODE           0x11
+#define MAX32664_ALGORITHM_MODE_ENABLE      0x52
 
 
 /*********************************************************************
  * TYPEDEFS
  */
+// MAX32664 Output Mode
 typedef enum {
   OUTPUT_MODE_PAUSE = 0x00,
   OUTPUT_MODE_SENSOR_DATA = 0x01,
@@ -109,6 +112,7 @@ static uint8_t Max32664_readSensorHubStatus(void);
 static uint8_t Max32664_setOutputMode(uint8_t output_mode);
 static uint8_t Max32664_readOutputMode(uint8_t *data);
 static uint8_t Max32664_setFifoInterruptThreshold(uint8_t threshold);
+static uint8_t Max32664_enableAutoGainControlAlgorithm(uint8_t enable);
 
 // I2C functions
 static void Max32664_i2cInit(void);
@@ -248,7 +252,14 @@ static void Max32664_initHeartRateAlgorithm()
     }
     Log_info1("Set FIFO interrupt threshold to: %d", threshold);
 
-    // TODO: AGC algo control
+    // Enable Automatic Gain Control algorithm
+    uint8_t enable = 0x01;
+    ret = Max32664_enableAutoGainControlAlgorithm(enable);
+    if (ret != 0) {
+        Log_error0("Error enabling Automatic Gain Control algorithm");
+        return;
+    }
+    Log_info0("Enable Automatic Gain Control algorithm");
 
     // TODO: Enable MAX86141 sensor
 
@@ -311,6 +322,8 @@ static uint8_t Max32664_setOutputMode(uint8_t output_mode)
     Max32664_i2cWrite(output_mode);
     success = Max32664_i2cEndTransmission();
     if (!success) return ret;
+
+    Task_sleep(MAX32664_I2C_CMD_DELAY * (1000 / Clock_tickPeriod));
 
     // Read status
     Max32664_i2cBeginTransmission(MAX32664_I2C_ADDRESS);
@@ -380,6 +393,8 @@ static uint8_t Max32664_setFifoInterruptThreshold(uint8_t threshold)
     success = Max32664_i2cEndTransmission();
     if (!success) return ret;
 
+    Task_sleep(MAX32664_I2C_CMD_DELAY * (1000 / Clock_tickPeriod));
+
     // Read status
     Max32664_i2cBeginTransmission(MAX32664_I2C_ADDRESS);
     Max32664_i2cReadRequest(1);
@@ -390,6 +405,43 @@ static uint8_t Max32664_setFifoInterruptThreshold(uint8_t threshold)
         ret = Max32664_i2cRead();
     }
 
+    return ret;
+}
+
+/*********************************************************************
+ * @fn      Max32664_enableAutoGainControlAlgorithm
+ *
+ * @brief   Enable or disable the Automatic Gain Control algorithm on the Biometric Sensor Hub.
+ *
+ * @param   Enable or Disable
+ */
+static uint8_t Max32664_enableAutoGainControlAlgorithm(uint8_t enable)
+{
+    uint8_t familyByte = MAX32664_ALGORITHM_MODE_ENABLE;
+    uint8_t indexByte = 0x00;
+    uint8_t ret = 0xFF;
+    bool success = false;
+
+    // Enable AGC algorithm
+    Max32664_i2cBeginTransmission(MAX32664_I2C_ADDRESS);
+    Max32664_i2cWrite(familyByte);
+    Max32664_i2cWrite(indexByte);
+    Max32664_i2cWrite(enable);
+    success = Max32664_i2cEndTransmission();
+    if (!success) return ret;
+
+    // Wait for enable value to update
+    Task_sleep(MAX32664_ENABLE_CMD_DELAY * (1000 / Clock_tickPeriod));
+
+    // Read status
+    Max32664_i2cBeginTransmission(MAX32664_I2C_ADDRESS);
+    Max32664_i2cReadRequest(1);
+    success = Max32664_i2cEndTransmission();
+    if (!success) return ret;
+
+    if (Max32664_i2cAvailable()) {
+        ret = Max32664_i2cRead();
+    }
 
     return ret;
 }
