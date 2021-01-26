@@ -75,6 +75,22 @@ typedef enum {
   OUTPUT_MODE_SAMPLE_COUNTER_BYTE_SENSOR_AND_ALGORITHM_DATA = 0x07
 } output_mode_t;
 
+// Status Byte Value
+typedef enum {
+  STATUS_SUCCESS = 0x00,
+  STATUS_ILLEGAL_FAMILY = 0x01,
+  STATUS_NOT_IMPLEMENTED = 0x02,
+  STATUS_INCORRECT_NUM_BYTES = 0x03,
+  STATUS_ILLEGAL_CONFIG = 0x04,
+  STATUS_INCORRECT_MODE = 0x05,
+  STATUS_ERROR_FLASHING = 0x80,
+  STATUS_CHECKSUM_ERROR = 0x81,
+  STATUS_AUTH_ERROR = 0x82,
+  STATUS_APPLICATION_INVALID = 0x83,
+  STATUS_DEVICE_BUSY = 0xFE,
+  STATUS_UNKNOWN_ERROR = 0xFF
+} status_t;
+
 // Heart Rate Data
 typedef struct {
     uint16_t heartRate;
@@ -132,14 +148,14 @@ static void Max32664_initApplicationMode();
 static void Max32664_initHeartRateAlgorithm();
 static void Max32664_readHeartRate(heartrate_data_t *data);
 
-static uint8_t Max32664_readSensorHubStatus(void);
-static uint8_t Max32664_setOutputMode(uint8_t output_mode);
-static uint8_t Max32664_readOutputMode(uint8_t *data);
-static uint8_t Max32664_setFifoInterruptThreshold(uint8_t threshold);
-static uint8_t Max32664_enableAutoGainControlAlgorithm(uint8_t enable);
-static uint8_t Max32664_enableWhrmWspo2Algorithm(uint8_t enableMode);
-static uint8_t Max32664_enableMax86141Sensor(uint8_t enable);
-static uint8_t Max32664_readFifoNumSamples(uint8_t *num_samples);
+static status_t Max32664_readSensorHubStatus(uint8_t *status);
+static status_t Max32664_setOutputMode(uint8_t output_mode);
+static status_t Max32664_readOutputMode(uint8_t *data);
+static status_t Max32664_setFifoInterruptThreshold(uint8_t threshold);
+static status_t Max32664_enableAutoGainControlAlgorithm(uint8_t enable);
+static status_t Max32664_enableWhrmWspo2Algorithm(uint8_t enableMode);
+static status_t Max32664_enableMax86141Sensor(uint8_t enable);
+static status_t Max32664_readFifoNumSamples(uint8_t *num_samples);
 
 // I2C functions
 static void Max32664_i2cInit(void);
@@ -344,28 +360,34 @@ static void Max32664_readHeartRate(heartrate_data_t *data)
  *
  * @brief   Read current status of the Biometric Sensor Hub.
  */
-static uint8_t Max32664_readSensorHubStatus(void)
+static status_t Max32664_readSensorHubStatus(uint8_t *status)
 {
     uint8_t familyByte = MAX32664_READ_SENSOR_HUB_STATUS;
     uint8_t indexByte = 0x00;
-    uint8_t ret = 0xFF;
+    status_t ret = STATUS_UNKNOWN_ERROR;
     bool success = false;
 
     Max32664_i2cBeginTransmission(MAX32664_I2C_ADDRESS);
     Max32664_i2cWrite(familyByte);
     Max32664_i2cWrite(indexByte);
     success = Max32664_i2cEndTransmission();
-    if (!success) return ret;
+    if (!success) return STATUS_UNKNOWN_ERROR;
 
     Task_sleep(MAX32664_I2C_CMD_DELAY * (1000 / Clock_tickPeriod));
 
     Max32664_i2cBeginTransmission(MAX32664_I2C_ADDRESS);
-    Max32664_i2cReadRequest(1);
+    Max32664_i2cReadRequest(2);
     success = Max32664_i2cEndTransmission();
-    if (!success) return ret;
+    if (!success) return STATUS_UNKNOWN_ERROR;
 
+    // Read status byte
     if (Max32664_i2cAvailable()) {
-        ret = Max32664_i2cRead();
+        ret = (status_t)Max32664_i2cRead();
+    }
+
+    // Read value byte
+    if (Max32664_i2cAvailable()) {
+        (*status) = Max32664_i2cRead();
     }
 
     return ret;
@@ -378,11 +400,11 @@ static uint8_t Max32664_readSensorHubStatus(void)
  *
  * @param   Output mode
  */
-static uint8_t Max32664_setOutputMode(uint8_t output_mode)
+static status_t Max32664_setOutputMode(uint8_t output_mode)
 {
     uint8_t familyByte = MAX32664_SET_OUTPUT_MODE;
     uint8_t indexByte = 0x00;
-    uint8_t ret = 0xFF;
+    status_t ret = STATUS_UNKNOWN_ERROR;
     bool success = false;
 
     // Update output mode
@@ -401,10 +423,10 @@ static uint8_t Max32664_setOutputMode(uint8_t output_mode)
     success = Max32664_i2cEndTransmission();
     if (!success) return ret;
 
+    // Read status byte
     if (Max32664_i2cAvailable()) {
-        ret = Max32664_i2cRead();
+        ret = (status_t)Max32664_i2cRead();
     }
-
 
     return ret;
 }
@@ -415,30 +437,37 @@ static uint8_t Max32664_setOutputMode(uint8_t output_mode)
  *
  * @brief   Read current output mode of the Biometric Sensor Hub.
  */
-static uint8_t Max32664_readOutputMode(uint8_t *data)
+static status_t Max32664_readOutputMode(uint8_t *data)
 {
     uint8_t familyByte = MAX32664_READ_OUTPUT_MODE;
     uint8_t indexByte = 0x00;
+    status_t ret = STATUS_UNKNOWN_ERROR;
     bool success = false;
 
     Max32664_i2cBeginTransmission(MAX32664_I2C_ADDRESS);
     Max32664_i2cWrite(familyByte);
     Max32664_i2cWrite(indexByte);
     success = Max32664_i2cEndTransmission();
-    if (!success) return 0xFF;
+    if (!success) return STATUS_UNKNOWN_ERROR;
 
     Task_sleep(MAX32664_I2C_CMD_DELAY * (1000 / Clock_tickPeriod));
 
     Max32664_i2cBeginTransmission(MAX32664_I2C_ADDRESS);
-    Max32664_i2cReadRequest(1);
+    Max32664_i2cReadRequest(2);
     success = Max32664_i2cEndTransmission();
-    if (!success) return 0xFF;
+    if (!success) return STATUS_UNKNOWN_ERROR;
 
+    // Read status byte
+    if (Max32664_i2cAvailable()) {
+        ret = (status_t)Max32664_i2cRead();
+    }
+
+    // Read value byte
     if (Max32664_i2cAvailable()) {
         (*data) = Max32664_i2cRead();
     }
 
-    return 0x0;
+    return ret;
 }
 
 /*********************************************************************
@@ -448,11 +477,11 @@ static uint8_t Max32664_readOutputMode(uint8_t *data)
  *
  * @param   Interrupt threshold for FIFO (number of samples)
  */
-static uint8_t Max32664_setFifoInterruptThreshold(uint8_t threshold)
+static status_t Max32664_setFifoInterruptThreshold(uint8_t threshold)
 {
     uint8_t familyByte = MAX32664_SET_OUTPUT_MODE;
     uint8_t indexByte = 0x01;
-    uint8_t ret = 0xFF;
+    status_t ret = STATUS_UNKNOWN_ERROR;
     bool success = false;
 
     // Update FIFO interrupt threshold
@@ -471,8 +500,9 @@ static uint8_t Max32664_setFifoInterruptThreshold(uint8_t threshold)
     success = Max32664_i2cEndTransmission();
     if (!success) return ret;
 
+    // Read status byte
     if (Max32664_i2cAvailable()) {
-        ret = Max32664_i2cRead();
+        ret = (status_t)Max32664_i2cRead();
     }
 
     return ret;
@@ -485,11 +515,11 @@ static uint8_t Max32664_setFifoInterruptThreshold(uint8_t threshold)
  *
  * @param   Enable or Disable
  */
-static uint8_t Max32664_enableAutoGainControlAlgorithm(uint8_t enable)
+static status_t Max32664_enableAutoGainControlAlgorithm(uint8_t enable)
 {
     uint8_t familyByte = MAX32664_ALGORITHM_MODE_ENABLE;
     uint8_t indexByte = MAX32664_AGC_ALGORITHM;
-    uint8_t ret = 0xFF;
+    status_t ret = STATUS_UNKNOWN_ERROR;
     bool success = false;
 
     // Enable AGC algorithm
@@ -509,8 +539,9 @@ static uint8_t Max32664_enableAutoGainControlAlgorithm(uint8_t enable)
     success = Max32664_i2cEndTransmission();
     if (!success) return ret;
 
+    // Read status byte
     if (Max32664_i2cAvailable()) {
-        ret = Max32664_i2cRead();
+        ret = (status_t)Max32664_i2cRead();
     }
 
     return ret;
@@ -523,11 +554,11 @@ static uint8_t Max32664_enableAutoGainControlAlgorithm(uint8_t enable)
  *
  * @param   Enable Mode or Disable
  */
-static uint8_t Max32664_enableWhrmWspo2Algorithm(uint8_t enableMode)
+static status_t Max32664_enableWhrmWspo2Algorithm(uint8_t enableMode)
 {
     uint8_t familyByte = MAX32664_ALGORITHM_MODE_ENABLE;
     uint8_t indexByte = MAX32664_WHRM_WSPO2_ALGORITHM;
-    uint8_t ret = 0xFF;
+    status_t ret = STATUS_UNKNOWN_ERROR;
     bool success = false;
 
     // Enable WHRM + WSpO2 algorithm
@@ -548,8 +579,9 @@ static uint8_t Max32664_enableWhrmWspo2Algorithm(uint8_t enableMode)
     success = Max32664_i2cEndTransmission();
     if (!success) return ret;
 
+    // Read status byte
     if (Max32664_i2cAvailable()) {
-        ret = Max32664_i2cRead();
+        ret = (status_t)Max32664_i2cRead();
     }
 
     return ret;
@@ -562,11 +594,11 @@ static uint8_t Max32664_enableWhrmWspo2Algorithm(uint8_t enableMode)
  *
  * @param   Enable or Disable
  */
-static uint8_t Max32664_enableMax86141Sensor(uint8_t enable)
+static status_t Max32664_enableMax86141Sensor(uint8_t enable)
 {
     uint8_t familyByte = MAX32664_SENSOR_MODE_ENABLE;
     uint8_t indexByte = MAX32664_MAX86141_ENABLE;
-    uint8_t ret = 0xFF;
+    status_t ret = STATUS_UNKNOWN_ERROR;
     bool success = false;
 
     // Enable MAX86141 sensor
@@ -586,8 +618,9 @@ static uint8_t Max32664_enableMax86141Sensor(uint8_t enable)
     success = Max32664_i2cEndTransmission();
     if (!success) return ret;
 
+    // Read status byte
     if (Max32664_i2cAvailable()) {
-        ret = Max32664_i2cRead();
+        ret = (status_t)Max32664_i2cRead();
     }
 
     return ret;
@@ -600,10 +633,11 @@ static uint8_t Max32664_enableMax86141Sensor(uint8_t enable)
  *
  * @param   Number of samples in FIFO
  */
-static uint8_t Max32664_readFifoNumSamples(uint8_t *num_samples)
+static status_t Max32664_readFifoNumSamples(uint8_t *num_samples)
 {
     uint8_t familyByte = MAX32664_READ_OUTPUT_FIFO;
     uint8_t indexByte = MAX32664_NUM_FIFO_SAMPLES;
+    status_t ret = STATUS_UNKNOWN_ERROR;
     bool success = false;
     (*num_samples) = 0;
 
@@ -611,21 +645,26 @@ static uint8_t Max32664_readFifoNumSamples(uint8_t *num_samples)
     Max32664_i2cWrite(familyByte);
     Max32664_i2cWrite(indexByte);
     success = Max32664_i2cEndTransmission();
-    if (!success) return 0xFF;
+    if (!success) return ret;
 
     Task_sleep(MAX32664_I2C_CMD_DELAY * (1000 / Clock_tickPeriod));
 
     Max32664_i2cBeginTransmission(MAX32664_I2C_ADDRESS);
-    Max32664_i2cReadRequest(1);
+    Max32664_i2cReadRequest(2);
     success = Max32664_i2cEndTransmission();
-    if (!success) return 0xFF;
+    if (!success) return ret;
 
+    // Read status byte
     if (Max32664_i2cAvailable()) {
-        uint8_t data = Max32664_i2cRead();
-        if (data == 0xFF) return 0xFF;
+        ret = (status_t)Max32664_i2cRead();
     }
 
-    return 0x0;
+    // Read value byte
+    if (Max32664_i2cAvailable()) {
+        (*num_samples) = Max32664_i2cRead();
+    }
+
+    return ret;
 }
 
 
@@ -652,8 +691,9 @@ static void Max32664_i2cInit(void)
     Log_info0("I2C initialized");
 
     // Read test
-    uint8_t status = Max32664_readSensorHubStatus();
-    if (status != 0) {
+    uint8_t sensor_status;
+    status_t ret = Max32664_readSensorHubStatus(&sensor_status);
+    if (ret != STATUS_SUCCESS || sensor_status == 1) {
         Log_error0("MAX32644 not connected");
     }
     else
