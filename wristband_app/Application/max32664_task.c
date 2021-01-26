@@ -70,6 +70,14 @@ typedef enum {
   OUTPUT_MODE_SAMPLE_COUNTER_BYTE_SENSOR_AND_ALGORITHM_DATA = 0x07
 } output_mode_t;
 
+// Heart Rate Data
+typedef struct {
+    uint8_t heartRate;
+    uint8_t spO2;
+    uint8_t confidence;
+    uint8_t status;
+} heartrate_data_t;
+
 
 /*********************************************************************
  * GLOBAL VARIABLES
@@ -117,7 +125,7 @@ static void Max32664_heartRateSwiFxn(UArg a0);
 // MAX32664 commands
 static void Max32664_initApplicationMode();
 static void Max32664_initHeartRateAlgorithm();
-static void Max32664_readHeartRate(uint8_t *data);
+static void Max32664_readHeartRate(heartrate_data_t *data);
 
 static uint8_t Max32664_readSensorHubStatus(void);
 static uint8_t Max32664_setOutputMode(uint8_t output_mode);
@@ -206,7 +214,11 @@ static void Max32664_taskFxn(UArg a0, UArg a1)
     // Application initialization
     Max32664_init();
 
-    uint8_t heartRateValue = 0;
+    heartrate_data_t heartRateData;
+    heartRateData.heartRate = 0;
+    heartRateData.spO2 = 0;
+    heartRateData.confidence = 0;
+    heartRateData.status = 0;
 
     // Application main loop
     for(;;)
@@ -214,15 +226,15 @@ static void Max32664_taskFxn(UArg a0, UArg a1)
         Semaphore_pend(heartRateSemaphore, BIOS_WAIT_FOREVER);
         if (heartRateAlgorithmInitialized) {
             // TODO: Read heart rate from MAX32664
-            Max32664_readHeartRate(&heartRateValue);
+            Max32664_readHeartRate(&heartRateData);
 
             // Pass message containing heart rate value to the BLE task
             uint8_t data[2];
-            data[0] = heartRateValue & 0xFF;
-            data[1] = heartRateValue >> 8;
+            data[0] = heartRateData.heartRate & 0xFF;
+            data[1] = heartRateData.heartRate >> 8;
             ProjectZero_valueChangeHandler(DATA_HEARTRATE, data);
 
-            Log_info1("Read Heart Rate: %d", heartRateValue);
+            Log_info1("Read Heart Rate: %d", heartRateData.heartRate);
         }
     }
 }
@@ -313,11 +325,11 @@ static void Max32664_initHeartRateAlgorithm()
  *
  * @brief   Read heart rate value from Biometric Sensor Hub.
  *
- * @param   Heart rate value
+ * @param   Heart rate, SpO2, confidence and status values
  */
-static void Max32664_readHeartRate(uint8_t *data)
+static void Max32664_readHeartRate(heartrate_data_t *data)
 {
-    (*data)++;
+    data->heartRate++;
 }
 
 
