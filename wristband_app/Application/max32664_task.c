@@ -78,7 +78,7 @@ Task_Struct max32664Task;
 uint8_t max32664TaskStack[MAX32664_THREAD_STACK_SIZE];
 
 bool heartRateAlgorithmInitialized = false;
-uint16_t heartRateValue;
+
 
 /*********************************************************************
  * LOCAL VARIABLES
@@ -117,6 +117,8 @@ static void Max32664_heartRateSwiFxn(UArg a0);
 // MAX32664 commands
 static void Max32664_initApplicationMode();
 static void Max32664_initHeartRateAlgorithm();
+static void Max32664_readHeartRate(uint8_t *data);
+
 static uint8_t Max32664_readSensorHubStatus(void);
 static uint8_t Max32664_setOutputMode(uint8_t output_mode);
 static uint8_t Max32664_readOutputMode(uint8_t *data);
@@ -172,9 +174,6 @@ static void Max32664_init(void)
     GPIO_setConfig(Board_GPIO_MAX32664_MFIO, GPIO_CFG_OUT_STD | GPIO_CFG_OUT_LOW);
     GPIO_setConfig(Board_GPIO_MAX32664_RESET, GPIO_CFG_OUT_STD | GPIO_CFG_OUT_HIGH);
 
-    // Initialize variables
-    heartRateValue = 0;
-
     // Create semaphores
     Semaphore_Params semParamsHeartRate;
     Semaphore_Params_init(&semParamsHeartRate);
@@ -207,13 +206,15 @@ static void Max32664_taskFxn(UArg a0, UArg a1)
     // Application initialization
     Max32664_init();
 
+    uint8_t heartRateValue = 0;
+
     // Application main loop
     for(;;)
     {
         Semaphore_pend(heartRateSemaphore, BIOS_WAIT_FOREVER);
         if (heartRateAlgorithmInitialized) {
             // TODO: Read heart rate from MAX32664
-            heartRateValue++;
+            Max32664_readHeartRate(&heartRateValue);
 
             // Pass message containing heart rate value to the BLE task
             uint8_t data[2];
@@ -305,6 +306,18 @@ static void Max32664_initHeartRateAlgorithm()
 
     heartRateAlgorithmInitialized = true;
     Log_info0("MAX32664 Heart Rate Algorithm configured");
+}
+
+/*********************************************************************
+ * @fn      Max32664_readHeartRate
+ *
+ * @brief   Read heart rate value from Biometric Sensor Hub.
+ *
+ * @param   Heart rate value
+ */
+static void Max32664_readHeartRate(uint8_t *data)
+{
+    (*data)++;
 }
 
 
