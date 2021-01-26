@@ -72,8 +72,8 @@ typedef enum {
 
 // Heart Rate Data
 typedef struct {
-    uint8_t heartRate;
-    uint8_t spO2;
+    uint16_t heartRate;
+    uint16_t spO2;
     uint8_t confidence;
     uint8_t status;
 } heartrate_data_t;
