@@ -593,6 +593,40 @@ static uint8_t Max32664_enableMax86141Sensor(uint8_t enable)
     return ret;
 }
 
+/*********************************************************************
+ * @fn      Max32664_readFifoNumSamples
+ *
+ * @brief   Get the number of samples in the Biometric Sensor Hub FIFO.
+ *
+ * @param   Number of samples in FIFO
+ */
+static uint8_t Max32664_readFifoNumSamples(uint8_t *num_samples)
+{
+    uint8_t familyByte = MAX32664_READ_OUTPUT_FIFO;
+    uint8_t indexByte = MAX32664_NUM_FIFO_SAMPLES;
+    bool success = false;
+    (*num_samples) = 0;
+
+    Max32664_i2cBeginTransmission(MAX32664_I2C_ADDRESS);
+    Max32664_i2cWrite(familyByte);
+    Max32664_i2cWrite(indexByte);
+    success = Max32664_i2cEndTransmission();
+    if (!success) return 0xFF;
+
+    Task_sleep(MAX32664_I2C_CMD_DELAY * (1000 / Clock_tickPeriod));
+
+    Max32664_i2cBeginTransmission(MAX32664_I2C_ADDRESS);
+    Max32664_i2cReadRequest(1);
+    success = Max32664_i2cEndTransmission();
+    if (!success) return 0xFF;
+
+    if (Max32664_i2cAvailable()) {
+        uint8_t data = Max32664_i2cRead();
+        if (data == 0xFF) return 0xFF;
+    }
+
+    return 0x0;
+}
 
 
 /*********************************************************************
