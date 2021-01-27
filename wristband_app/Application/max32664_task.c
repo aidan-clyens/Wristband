@@ -380,14 +380,14 @@ static status_t Max32664_readSensorHubStatus(uint8_t *status)
     success = Max32664_i2cEndTransmission();
     if (!success) return STATUS_UNKNOWN_ERROR;
 
-    // Read status byte
-    if (Max32664_i2cAvailable()) {
-        ret = (status_t)Max32664_i2cRead();
-    }
-
     // Read value byte
     if (Max32664_i2cAvailable()) {
         (*status) = Max32664_i2cRead();
+    }
+
+    // Read status byte
+    if (Max32664_i2cAvailable()) {
+        ret = (status_t)Max32664_i2cRead();
     }
 
     return ret;
@@ -457,14 +457,14 @@ static status_t Max32664_readOutputMode(uint8_t *data)
     success = Max32664_i2cEndTransmission();
     if (!success) return STATUS_UNKNOWN_ERROR;
 
-    // Read status byte
-    if (Max32664_i2cAvailable()) {
-        ret = (status_t)Max32664_i2cRead();
-    }
-
     // Read value byte
     if (Max32664_i2cAvailable()) {
         (*data) = Max32664_i2cRead();
+    }
+
+    // Read status byte
+    if (Max32664_i2cAvailable()) {
+        ret = (status_t)Max32664_i2cRead();
     }
 
     return ret;
@@ -654,14 +654,14 @@ static status_t Max32664_readFifoNumSamples(uint8_t *num_samples)
     success = Max32664_i2cEndTransmission();
     if (!success) return ret;
 
-    // Read status byte
-    if (Max32664_i2cAvailable()) {
-        ret = (status_t)Max32664_i2cRead();
-    }
-
     // Read value byte
     if (Max32664_i2cAvailable()) {
         (*num_samples) = Max32664_i2cRead();
+    }
+
+    // Read status byte
+    if (Max32664_i2cAvailable()) {
+        ret = (status_t)Max32664_i2cRead();
     }
 
     return ret;
