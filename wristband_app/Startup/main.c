@@ -56,6 +56,7 @@
 #include <ti/drivers/power/PowerCC26XX.h>
 #include <ti/sysbios/BIOS.h>
 #include <ti/drivers/UART.h>
+#include <ti/drivers/GPIO.h>
 
 // Comment this in to use xdc.runtime.Log, but also remove UartLog_init below.
 //#include <xdc/runtime/Log.h>
@@ -66,6 +67,7 @@
 #include "bcomdef.h"
 #include "project_zero.h"
 #include "max32664_task.h"
+#include "i2c_util.h"
 
 #ifndef USE_DEFAULT_USER_CFG
 #include "ble_user_config.h"
@@ -146,6 +148,16 @@ int main()
     /* Start tasks of external images - Priority 5 */
     ICall_createRemoteTasks();
 
+    /* Initialize GPIO */
+    GPIO_init();
+
+    /* Initialize I2C */
+    if (!Util_i2cInit()) {
+        Log_error0("Startup failed. Exiting");
+        return(1);
+    }
+
+    /* Initialize user tasks */
     ProjectZero_createTask();
     Max32664_createTask();
 

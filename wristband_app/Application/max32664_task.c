@@ -23,22 +23,25 @@
 #include <icall.h>
 #include <project_zero.h>
 #include <util.h>
+#include <i2c_util.h>
 
 
 /*********************************************************************
  * CONSTANTS
  */
 // Task
-#define MAX32664_THREAD_STACK_SIZE      1024
-#define MAX32664_TASK_PRIORITY          1
+#define MAX32664_THREAD_STACK_SIZE                      1024
+#define MAX32664_TASK_PRIORITY                          1
 
-#define MAX32664_HEARTRATE_CLOCK_PERIOD     30*1000
+#define MAX32664_REPORT_PERIOD_MS           5*1000  // Change to 2*40 ms
+
+#define MAX32664_NORMAL_REPORT_ALGORITHM_ONLY_SIZE      20
+#define MAX32664_MAX_NUM_SAMPLES            4
 
 // I2C
-#define MAX32664_I2C_ADDRESS        0xAA
-#define MAX32664_BUFFER_SIZE        32
-#define MAX32664_I2C_CMD_DELAY      6
-#define MAX32664_ENABLE_CMD_DELAY   22
+#define MAX32664_ADDRESS                0xAA
+#define MAX32664_CMD_DELAY              6
+#define MAX32664_ENABLE_CMD_DELAY           22
 
 // Family names
 #define MAX32664_READ_SENSOR_HUB_STATUS     0x00
@@ -57,7 +60,11 @@
 
 // Algorithms
 #define MAX32664_AGC_ALGORITHM              0x00
-#define MAX32664_WHRM_WSPO2_ALGORITHM       0x04
+#define MAX32664_WHRM_WSPO2_ALGORITHM       0x07
+
+// Modes
+#define MAX32664_NORMAL_REPORT_MODE         0x01
+#define MAX32664_EXTENDED_REPORT_MODE       0x02
 
 
 /*********************************************************************
@@ -119,19 +126,14 @@ static ICall_EntityID selfEntity;
 // local events.
 static ICall_SyncHandle syncEvent;
 
-// I2C
-static I2C_Handle i2cHandle;
-static I2C_Transaction transaction;
-static uint8_t txBuffer[MAX32664_BUFFER_SIZE];
-static uint8_t rxBuffer[MAX32664_BUFFER_SIZE];
-static int rxIndex;
-
 // Clocks
 static Clock_Struct heartrateClock;
 static Clock_Handle heartrateClockHandle;
 
 // Semaphores
 static Semaphore_Handle heartRateSemaphore;
+
+static uint8_t reportBuffer[MAX32664_MAX_NUM_SAMPLES * MAX32664_NORMAL_REPORT_ALGORITHM_ONLY_SIZE];
 
 
 /*********************************************************************
@@ -156,15 +158,11 @@ static status_t Max32664_enableAutoGainControlAlgorithm(uint8_t enable);
 static status_t Max32664_enableWhrmWspo2Algorithm(uint8_t enableMode);
 static status_t Max32664_enableMax86141Sensor(uint8_t enable);
 static status_t Max32664_readFifoNumSamples(uint8_t *num_samples);
+static status_t Max32664_readFifoData(int num_bytes);
 
-// I2C functions
-static void Max32664_i2cInit(void);
-static void Max32664_i2cBeginTransmission(uint8_t address);
-static bool Max32664_i2cEndTransmission(void);
-static void Max32664_i2cReadRequest(int num_bytes);
-static void Max32664_i2cWrite(uint8_t data);
-static uint8_t Max32664_i2cRead(void);
-static bool Max32664_i2cAvailable(void);
+// MAX32664 helper functions
+static status_t Max32664_readByte(uint8_t family, uint8_t index, uint8_t *data);
+static status_t Max32664_writeByte(uint8_t family, uint8_t index, uint8_t data, int delay);
 
 
 /*********************************************************************
@@ -199,8 +197,7 @@ static void Max32664_init(void)
     // Register application with ICall
     ICall_registerApp(&selfEntity, &syncEvent);
 
-    // Initialize GPIO
-    GPIO_init();
+    // Initialize GPIO pins
     GPIO_setConfig(Board_GPIO_MAX32664_MFIO, GPIO_CFG_OUT_STD | GPIO_CFG_OUT_LOW);
     GPIO_setConfig(Board_GPIO_MAX32664_RESET, GPIO_CFG_OUT_STD | GPIO_CFG_OUT_HIGH);
 
@@ -211,14 +208,25 @@ static void Max32664_init(void)
 
     // Initialize MAX32664 sensor
     Max32664_initApplicationMode();
-    Max32664_i2cInit();
+
+    // Read test
+    uint8_t sensor_status;
+    status_t ret = Max32664_readSensorHubStatus(&sensor_status);
+    if (ret != STATUS_SUCCESS || sensor_status == 1) {
+        Log_error0("MAX32644 not connected");
+    }
+    else
+    {
+        Log_info0("MAX32664 connected successfully");
+    }
+
     Max32664_initHeartRateAlgorithm();
 
     // Create clocks
     heartrateClockHandle = Util_constructClock(&heartrateClock,
                                                Max32664_heartRateSwiFxn,
-                                               MAX32664_HEARTRATE_CLOCK_PERIOD,
-                                               MAX32664_HEARTRATE_CLOCK_PERIOD,
+                                               MAX32664_REPORT_PERIOD_MS,
+                                               MAX32664_REPORT_PERIOD_MS,
                                                1,
                                                NULL
                                                );
@@ -247,7 +255,7 @@ static void Max32664_taskFxn(UArg a0, UArg a1)
     {
         Semaphore_pend(heartRateSemaphore, BIOS_WAIT_FOREVER);
         if (heartRateAlgorithmInitialized) {
-            // TODO: Read heart rate from MAX32664
+            // Read heart rate from MAX32664
             Max32664_readHeartRate(&heartRateData);
 
             // Pass message containing heart rate value to the BLE task
@@ -291,6 +299,7 @@ static void Max32664_initApplicationMode()
 static void Max32664_initHeartRateAlgorithm()
 {
     uint8_t enable;
+    uint8_t mode;
     uint8_t ret = 0xFF;
 
     // Set output mode to Algorithm Data
@@ -309,6 +318,10 @@ static void Max32664_initHeartRateAlgorithm()
         return;
     }
     Log_info1("Set FIFO interrupt threshold to: %d", threshold);
+
+    // TODO: Enable host accelerometer, if used
+
+    // TODO: Double check algorithm config
 
     // Enable Automatic Gain Control algorithm
     enable = 0x01;
@@ -329,14 +342,15 @@ static void Max32664_initHeartRateAlgorithm()
     Log_info0("Enable MAX86141 sensor");
 
     // Enable WHRM + WSpO2 algorithm (version C)
-    // TODO: Investigate algorithm modes (1 or 2)
-    enable = 0x01;
-    ret = Max32664_enableWhrmWspo2Algorithm(enable);
+    // Mode 1: Normal Report
+    // Mode 2: Extended Report
+    mode = MAX32664_NORMAL_REPORT_MODE;
+    ret = Max32664_enableWhrmWspo2Algorithm(mode);
     if (ret != 0) {
         Log_error0("Error enabling WHRM + WSpo2 (version C) algorithm");
         return;
     }
-    Log_info0("Enable WHRM + WSpo2 (version C) algorithm");
+    Log_info1("Enable WHRM + WSpo2 (version C) algorithm in mode: %d", mode);
 
     heartRateAlgorithmInitialized = true;
     Log_info0("MAX32664 Heart Rate Algorithm configured");
@@ -351,6 +365,47 @@ static void Max32664_initHeartRateAlgorithm()
  */
 static void Max32664_readHeartRate(heartrate_data_t *data)
 {
+    status_t ret;
+
+    // Initialize values
+    data->heartRate = 0;
+    data->spO2 = 0;
+    data->confidence = 0;
+    data->status = 0;
+
+    // Check sensor status before reading FIFO data
+    uint8_t sensor_status;
+    ret = Max32664_readSensorHubStatus(&sensor_status);
+    if (ret != STATUS_SUCCESS || sensor_status == 1) {
+        Log_error0("Error communicating with Sensor Hub, cannot read Heart Rate data");
+        return;
+    }
+    Log_info0("Reading Heart Rate data from Sensor Hub");
+    // TODO: Check if bit 3 (FIFO filled to threshold) is set
+
+    // Get the number of samples in the FIFO
+    uint8_t num_samples = 0;
+    ret = Max32664_readFifoNumSamples(&num_samples);
+    if (ret != STATUS_SUCCESS) {
+        Log_error0("Error reading number of FIFO samples");
+        return;
+    }
+    Log_info1("Reading %d samples from FIFO", num_samples);
+
+    uint8_t num_bytes = num_samples * MAX32664_NORMAL_REPORT_ALGORITHM_ONLY_SIZE;
+
+    // TODO: Read the data stored in the FIFO
+    ret = Max32664_readFifoData(num_bytes);
+    if (ret != STATUS_SUCCESS) {
+        Log_error0("Error reading report from FIFO");
+        return;
+    }
+    Log_info1("Read %d samples from FIFO", num_samples);
+
+//    for (int i = 0; i < num_bytes; i++) {
+//        if (reportBuffer[i] != 0) Log_info1("%d", reportBuffer[i]);
+//    }
+
     data->heartRate++;
 }
 
@@ -362,35 +417,7 @@ static void Max32664_readHeartRate(heartrate_data_t *data)
  */
 static status_t Max32664_readSensorHubStatus(uint8_t *status)
 {
-    uint8_t familyByte = MAX32664_READ_SENSOR_HUB_STATUS;
-    uint8_t indexByte = 0x00;
-    status_t ret = STATUS_UNKNOWN_ERROR;
-    bool success = false;
-
-    Max32664_i2cBeginTransmission(MAX32664_I2C_ADDRESS);
-    Max32664_i2cWrite(familyByte);
-    Max32664_i2cWrite(indexByte);
-    success = Max32664_i2cEndTransmission();
-    if (!success) return STATUS_UNKNOWN_ERROR;
-
-    Task_sleep(MAX32664_I2C_CMD_DELAY * (1000 / Clock_tickPeriod));
-
-    Max32664_i2cBeginTransmission(MAX32664_I2C_ADDRESS);
-    Max32664_i2cReadRequest(2);
-    success = Max32664_i2cEndTransmission();
-    if (!success) return STATUS_UNKNOWN_ERROR;
-
-    // Read value byte
-    if (Max32664_i2cAvailable()) {
-        (*status) = Max32664_i2cRead();
-    }
-
-    // Read status byte
-    if (Max32664_i2cAvailable()) {
-        ret = (status_t)Max32664_i2cRead();
-    }
-
-    return ret;
+    return Max32664_readByte(MAX32664_READ_SENSOR_HUB_STATUS, 0x00, status);
 }
 
 /*********************************************************************
@@ -402,33 +429,7 @@ static status_t Max32664_readSensorHubStatus(uint8_t *status)
  */
 static status_t Max32664_setOutputMode(uint8_t output_mode)
 {
-    uint8_t familyByte = MAX32664_SET_OUTPUT_MODE;
-    uint8_t indexByte = 0x00;
-    status_t ret = STATUS_UNKNOWN_ERROR;
-    bool success = false;
-
-    // Update output mode
-    Max32664_i2cBeginTransmission(MAX32664_I2C_ADDRESS);
-    Max32664_i2cWrite(familyByte);
-    Max32664_i2cWrite(indexByte);
-    Max32664_i2cWrite(output_mode);
-    success = Max32664_i2cEndTransmission();
-    if (!success) return ret;
-
-    Task_sleep(MAX32664_I2C_CMD_DELAY * (1000 / Clock_tickPeriod));
-
-    // Read status
-    Max32664_i2cBeginTransmission(MAX32664_I2C_ADDRESS);
-    Max32664_i2cReadRequest(1);
-    success = Max32664_i2cEndTransmission();
-    if (!success) return ret;
-
-    // Read status byte
-    if (Max32664_i2cAvailable()) {
-        ret = (status_t)Max32664_i2cRead();
-    }
-
-    return ret;
+    return Max32664_writeByte(MAX32664_SET_OUTPUT_MODE, 0x00, output_mode, MAX32664_CMD_DELAY);
 }
 
 
@@ -439,35 +440,7 @@ static status_t Max32664_setOutputMode(uint8_t output_mode)
  */
 static status_t Max32664_readOutputMode(uint8_t *data)
 {
-    uint8_t familyByte = MAX32664_READ_OUTPUT_MODE;
-    uint8_t indexByte = 0x00;
-    status_t ret = STATUS_UNKNOWN_ERROR;
-    bool success = false;
-
-    Max32664_i2cBeginTransmission(MAX32664_I2C_ADDRESS);
-    Max32664_i2cWrite(familyByte);
-    Max32664_i2cWrite(indexByte);
-    success = Max32664_i2cEndTransmission();
-    if (!success) return STATUS_UNKNOWN_ERROR;
-
-    Task_sleep(MAX32664_I2C_CMD_DELAY * (1000 / Clock_tickPeriod));
-
-    Max32664_i2cBeginTransmission(MAX32664_I2C_ADDRESS);
-    Max32664_i2cReadRequest(2);
-    success = Max32664_i2cEndTransmission();
-    if (!success) return STATUS_UNKNOWN_ERROR;
-
-    // Read value byte
-    if (Max32664_i2cAvailable()) {
-        (*data) = Max32664_i2cRead();
-    }
-
-    // Read status byte
-    if (Max32664_i2cAvailable()) {
-        ret = (status_t)Max32664_i2cRead();
-    }
-
-    return ret;
+    return Max32664_readByte(MAX32664_READ_OUTPUT_MODE, 0x00, data);
 }
 
 /*********************************************************************
@@ -479,33 +452,7 @@ static status_t Max32664_readOutputMode(uint8_t *data)
  */
 static status_t Max32664_setFifoInterruptThreshold(uint8_t threshold)
 {
-    uint8_t familyByte = MAX32664_SET_OUTPUT_MODE;
-    uint8_t indexByte = 0x01;
-    status_t ret = STATUS_UNKNOWN_ERROR;
-    bool success = false;
-
-    // Update FIFO interrupt threshold
-    Max32664_i2cBeginTransmission(MAX32664_I2C_ADDRESS);
-    Max32664_i2cWrite(familyByte);
-    Max32664_i2cWrite(indexByte);
-    Max32664_i2cWrite(threshold);
-    success = Max32664_i2cEndTransmission();
-    if (!success) return ret;
-
-    Task_sleep(MAX32664_I2C_CMD_DELAY * (1000 / Clock_tickPeriod));
-
-    // Read status
-    Max32664_i2cBeginTransmission(MAX32664_I2C_ADDRESS);
-    Max32664_i2cReadRequest(1);
-    success = Max32664_i2cEndTransmission();
-    if (!success) return ret;
-
-    // Read status byte
-    if (Max32664_i2cAvailable()) {
-        ret = (status_t)Max32664_i2cRead();
-    }
-
-    return ret;
+    return Max32664_writeByte(MAX32664_SET_OUTPUT_MODE, 0x01, threshold, MAX32664_CMD_DELAY);
 }
 
 /*********************************************************************
@@ -517,34 +464,7 @@ static status_t Max32664_setFifoInterruptThreshold(uint8_t threshold)
  */
 static status_t Max32664_enableAutoGainControlAlgorithm(uint8_t enable)
 {
-    uint8_t familyByte = MAX32664_ALGORITHM_MODE_ENABLE;
-    uint8_t indexByte = MAX32664_AGC_ALGORITHM;
-    status_t ret = STATUS_UNKNOWN_ERROR;
-    bool success = false;
-
-    // Enable AGC algorithm
-    Max32664_i2cBeginTransmission(MAX32664_I2C_ADDRESS);
-    Max32664_i2cWrite(familyByte);
-    Max32664_i2cWrite(indexByte);
-    Max32664_i2cWrite(enable);
-    success = Max32664_i2cEndTransmission();
-    if (!success) return ret;
-
-    // Wait for enable value to update
-    Task_sleep(MAX32664_ENABLE_CMD_DELAY * (1000 / Clock_tickPeriod));
-
-    // Read status
-    Max32664_i2cBeginTransmission(MAX32664_I2C_ADDRESS);
-    Max32664_i2cReadRequest(1);
-    success = Max32664_i2cEndTransmission();
-    if (!success) return ret;
-
-    // Read status byte
-    if (Max32664_i2cAvailable()) {
-        ret = (status_t)Max32664_i2cRead();
-    }
-
-    return ret;
+    return Max32664_writeByte(MAX32664_ALGORITHM_MODE_ENABLE, MAX32664_AGC_ALGORITHM, enable, MAX32664_ENABLE_CMD_DELAY);
 }
 
 /*********************************************************************
@@ -556,35 +476,7 @@ static status_t Max32664_enableAutoGainControlAlgorithm(uint8_t enable)
  */
 static status_t Max32664_enableWhrmWspo2Algorithm(uint8_t enableMode)
 {
-    uint8_t familyByte = MAX32664_ALGORITHM_MODE_ENABLE;
-    uint8_t indexByte = MAX32664_WHRM_WSPO2_ALGORITHM;
-    status_t ret = STATUS_UNKNOWN_ERROR;
-    bool success = false;
-
-    // Enable WHRM + WSpO2 algorithm
-    Max32664_i2cBeginTransmission(MAX32664_I2C_ADDRESS);
-    Max32664_i2cWrite(familyByte);
-    Max32664_i2cWrite(indexByte);
-    Max32664_i2cWrite(enableMode);
-    success = Max32664_i2cEndTransmission();
-    if (!success) return ret;
-
-    // Wait for enable value to update (120 ms for Mode 1)
-    // TODO: Investigate Mode 1 vs. 2
-    Task_sleep(130 * (1000 / Clock_tickPeriod));
-
-    // Read status
-    Max32664_i2cBeginTransmission(MAX32664_I2C_ADDRESS);
-    Max32664_i2cReadRequest(1);
-    success = Max32664_i2cEndTransmission();
-    if (!success) return ret;
-
-    // Read status byte
-    if (Max32664_i2cAvailable()) {
-        ret = (status_t)Max32664_i2cRead();
-    }
-
-    return ret;
+    return Max32664_writeByte(MAX32664_ALGORITHM_MODE_ENABLE, MAX32664_WHRM_WSPO2_ALGORITHM, enableMode, 130);
 }
 
 /*********************************************************************
@@ -596,34 +488,7 @@ static status_t Max32664_enableWhrmWspo2Algorithm(uint8_t enableMode)
  */
 static status_t Max32664_enableMax86141Sensor(uint8_t enable)
 {
-    uint8_t familyByte = MAX32664_SENSOR_MODE_ENABLE;
-    uint8_t indexByte = MAX32664_MAX86141_ENABLE;
-    status_t ret = STATUS_UNKNOWN_ERROR;
-    bool success = false;
-
-    // Enable MAX86141 sensor
-    Max32664_i2cBeginTransmission(MAX32664_I2C_ADDRESS);
-    Max32664_i2cWrite(familyByte);
-    Max32664_i2cWrite(indexByte);
-    Max32664_i2cWrite(enable);
-    success = Max32664_i2cEndTransmission();
-    if (!success) return ret;
-
-    // Wait for enable value to update
-    Task_sleep(MAX32664_ENABLE_CMD_DELAY * (1000 / Clock_tickPeriod));
-
-    // Read status
-    Max32664_i2cBeginTransmission(MAX32664_I2C_ADDRESS);
-    Max32664_i2cReadRequest(1);
-    success = Max32664_i2cEndTransmission();
-    if (!success) return ret;
-
-    // Read status byte
-    if (Max32664_i2cAvailable()) {
-        ret = (status_t)Max32664_i2cRead();
-    }
-
-    return ret;
+    return Max32664_writeByte(MAX32664_SENSOR_MODE_ENABLE, MAX32664_MAX86141_ENABLE, enable, MAX32664_ENABLE_CMD_DELAY);
 }
 
 /*********************************************************************
@@ -635,33 +500,48 @@ static status_t Max32664_enableMax86141Sensor(uint8_t enable)
  */
 static status_t Max32664_readFifoNumSamples(uint8_t *num_samples)
 {
+    return Max32664_readByte(MAX32664_READ_OUTPUT_FIFO, MAX32664_NUM_FIFO_SAMPLES, num_samples);
+}
+
+/*********************************************************************
+ * @fn      Max32664_readFifoData
+ *
+ * @brief   Read the samples from the FIFO in the Biometric Sensor Hub FIFO.
+ *
+ * @param   data - Buffer to store FIFO data
+ * @param   num_bytes - Number of bytes to read from the FIFO
+ */
+static status_t Max32664_readFifoData(int num_bytes)
+{
     uint8_t familyByte = MAX32664_READ_OUTPUT_FIFO;
-    uint8_t indexByte = MAX32664_NUM_FIFO_SAMPLES;
+    uint8_t indexByte = MAX32664_READ_FIFO_DATA;
     status_t ret = STATUS_UNKNOWN_ERROR;
     bool success = false;
-    (*num_samples) = 0;
 
-    Max32664_i2cBeginTransmission(MAX32664_I2C_ADDRESS);
-    Max32664_i2cWrite(familyByte);
-    Max32664_i2cWrite(indexByte);
-    success = Max32664_i2cEndTransmission();
+    Util_i2cBeginTransmission(MAX32664_ADDRESS);
+    Util_i2cWrite(familyByte);
+    Util_i2cWrite(indexByte);
+    success = Util_i2cEndTransmission();
     if (!success) return ret;
 
-    Task_sleep(MAX32664_I2C_CMD_DELAY * (1000 / Clock_tickPeriod));
+    Task_sleep(MAX32664_CMD_DELAY * (1000 / Clock_tickPeriod));
 
-    Max32664_i2cBeginTransmission(MAX32664_I2C_ADDRESS);
-    Max32664_i2cReadRequest(2);
-    success = Max32664_i2cEndTransmission();
+    Util_i2cBeginTransmission(MAX32664_ADDRESS);
+    Util_i2cReadRequest(num_bytes + 1);
+    success = Util_i2cEndTransmission();
     if (!success) return ret;
 
-    // Read value byte
-    if (Max32664_i2cAvailable()) {
-        (*num_samples) = Max32664_i2cRead();
+    // Read value bytes
+    int i = 0;
+    Log_info1("Bytes: %d", Util_i2cAvailable());
+    while (Util_i2cAvailable() > 1) {
+        reportBuffer[i] = Util_i2cRead();
+        i++;
     }
 
     // Read status byte
-    if (Max32664_i2cAvailable()) {
-        ret = (status_t)Max32664_i2cRead();
+    if (Util_i2cAvailable()) {
+        ret = (status_t)Util_i2cRead();
     }
 
     return ret;
@@ -669,125 +549,86 @@ static status_t Max32664_readFifoNumSamples(uint8_t *num_samples)
 
 
 /*********************************************************************
- * @fn      Max32664_i2cInit
+ * @fn      Max32664_writeByte
  *
- * @brief   Initialization the master I2C connection with the Biometric Sensor Hub.
+ * @brief   Write a byte to the Biometric Sensor Hub.
+ *
+ * @param   family  -   Family register byte
+ * @param   index   -   Index byte of family
+ * @param   data    -   Data to write
+ * @param   delay   -   Delay in ms to wait in between write and read
  */
-static void Max32664_i2cInit(void)
+static status_t Max32664_writeByte(uint8_t family, uint8_t index, uint8_t data, int delay)
 {
-    I2C_Params i2cParams;
-    rxIndex = 0;
+    status_t ret = STATUS_UNKNOWN_ERROR;
+    bool success = false;
 
-    I2C_init();
+    // Write value
+    Util_i2cBeginTransmission(MAX32664_ADDRESS);
+    Util_i2cWrite(family);
+    Util_i2cWrite(index);
+    Util_i2cWrite(data);
+    success = Util_i2cEndTransmission();
+    if (!success) return ret;
 
-    // Configure I2C
-    I2C_Params_init(&i2cParams);
-    i2cParams.bitRate = I2C_400kHz;
-    i2cHandle = I2C_open(Board_I2C_TMP, &i2cParams);
-    if (i2cHandle == NULL) {
-        Log_error0("I2C initialization failed!");
-        Task_exit();
+    // Wait to value to update on slave
+    Task_sleep(delay * (1000 / Clock_tickPeriod));
+
+    // Read status
+    Util_i2cBeginTransmission(MAX32664_ADDRESS);
+    Util_i2cReadRequest(1);
+    success = Util_i2cEndTransmission();
+    if (!success) return ret;
+
+    // Read status byte
+    if (Util_i2cAvailable()) {
+        ret = (status_t)Util_i2cRead();
     }
-    Log_info0("I2C initialized");
-
-    // Read test
-    uint8_t sensor_status;
-    status_t ret = Max32664_readSensorHubStatus(&sensor_status);
-    if (ret != STATUS_SUCCESS || sensor_status == 1) {
-        Log_error0("MAX32644 not connected");
-    }
-    else
-    {
-        Log_info0("MAX32664 connected successfully");
-    }
-}
-
-/*********************************************************************
- * @fn      Max32664_i2cBeginTransmission
- *
- * @brief   Begin I2C data transmission.
- *
- * @param   address - Address of slave device.
- */
-static void Max32664_i2cBeginTransmission(uint8_t address)
-{
-    transaction.writeBuf = txBuffer;
-    transaction.readBuf = rxBuffer;
-    transaction.readCount = 0;
-    transaction.writeCount = 0;
-    transaction.slaveAddress = address;
-}
-
-/*********************************************************************
- * @fn      Max32664_i2cEndTransmission
- *
- * @brief   End I2C data transmission.
- */
-static bool Max32664_i2cEndTransmission(void)
-{
-    bool ret;
-    if (!I2C_transfer(i2cHandle, &transaction))
-    {
-        Log_error0("I2C transaction failed");
-        ret = false;
-    }
-    else
-    {
-        Log_info0("I2C transaction successful");
-        ret = true;
-    }
-
-    transaction.writeCount = 0;
 
     return ret;
 }
 
 /*********************************************************************
- * @fn      Max32664_i2cWrite
+ * @fn      Max32664_readByte
  *
- * @brief   Write a byte to transmit over I2C.
+ * @brief   Read a byte from the Biometric Sensor Hub.
+ *
+ * @param   family  -   Family register byte
+ * @param   index   -   Index byte of family
+ * @param   data    -   Data to read
  */
-static void Max32664_i2cWrite(uint8_t data)
+static status_t Max32664_readByte(uint8_t family, uint8_t index, uint8_t *data)
 {
-    txBuffer[transaction.writeCount] = data;
-    transaction.writeCount++;
-}
+    status_t ret = STATUS_UNKNOWN_ERROR;
+    bool success = false;
+    (*data) = 0;
 
-/*********************************************************************
- * @fn      Max32664_i2cWrite
- *
- * @brief   Write a byte to transmit over I2C.
- */
-static void Max32664_i2cReadRequest(int num_bytes)
-{
-    transaction.readCount = num_bytes;
-}
+    Util_i2cBeginTransmission(MAX32664_ADDRESS);
+    Util_i2cWrite(family);
+    Util_i2cWrite(index);
+    success = Util_i2cEndTransmission();
+    if (!success) return ret;
 
-/*********************************************************************
- * @fn      Max32664_i2cRead
- *
- * @brief   Read a byte to over I2C.
- */
-static uint8_t Max32664_i2cRead(void)
-{
-    uint8_t data = -1;
-    if (transaction.readCount > 0) {
-        data = rxBuffer[transaction.readCount-1];
-        transaction.readCount--;
+    Task_sleep(MAX32664_CMD_DELAY * (1000 / Clock_tickPeriod));
+
+    Util_i2cBeginTransmission(MAX32664_ADDRESS);
+    Util_i2cReadRequest(2);
+    success = Util_i2cEndTransmission();
+    if (!success) return ret;
+
+    // Read value byte
+    if (Util_i2cAvailable()) {
+        (*data) = Util_i2cRead();
     }
 
-    return data;
+    // Read status byte
+    if (Util_i2cAvailable()) {
+        ret = (status_t)Util_i2cRead();
+    }
+
+    return ret;
 }
 
-/*********************************************************************
- * @fn      Max32664_i2cAvailable
- *
- * @brief   Check if data has been received over I2C.
- */
-static bool Max32664_i2cAvailable(void)
-{
-    return (transaction.readCount > 0);
-}
 
 /*********************************************************************
  * @fn      Max32664_heartRateSwiFxn
