@@ -489,7 +489,7 @@ void ProjectZero_valueChangeHandler(dataType_t type, uint8_t data[])
     {
         switch (type)
         {
-        case DATA_HEARTRATE:
+        case DATA_MAX32664:
             charData->svcUUID = HEARTRATE_SERVICE_HEARTRATEVALUE_UUID;
             charData->paramID = HEARTRATE_SERVICE_HEARTRATEVALUE_ID;
             charData->dataLen = HEARTRATE_SERVICE_HEARTRATEVALUE_LEN;
@@ -626,9 +626,10 @@ static void ProjectZero_init(void)
 
     // Initialization of characteristics in heartrate_service that are readable.
     Heartrate_service_SetParameter(HEARTRATE_SERVICE_HEARTRATEVALUE_ID, HEARTRATE_SERVICE_HEARTRATEVALUE_LEN, initVal);
+    Heartrate_service_SetParameter(HEARTRATE_SERVICE_HEARTRATECONFIDENCE_ID, HEARTRATE_SERVICE_HEARTRATECONFIDENCE_LEN, initVal);
     Heartrate_service_SetParameter(HEARTRATE_SERVICE_SPO2VALUE_ID, HEARTRATE_SERVICE_SPO2VALUE_LEN, initVal);
-    Heartrate_service_SetParameter(HEARTRATE_SERVICE_STATUSVALUE_ID, HEARTRATE_SERVICE_STATUSVALUE_LEN, initVal);
-    Heartrate_service_SetParameter(HEARTRATE_SERVICE_CONFIDENCEVALUE_ID, HEARTRATE_SERVICE_CONFIDENCEVALUE_LEN, initVal);
+    Heartrate_service_SetParameter(HEARTRATE_SERVICE_SPO2CONFIDENCE_ID, HEARTRATE_SERVICE_SPO2CONFIDENCE_LEN, initVal);
+    Heartrate_service_SetParameter(HEARTRATE_SERVICE_SCDSTATE_ID, HEARTRATE_SERVICE_SCDSTATE_LEN, initVal);
 
     // Start Bond Manager and register callback
     VOID GAPBondMgr_Register(&ProjectZero_BondMgrCBs);

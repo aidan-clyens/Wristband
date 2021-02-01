@@ -101,9 +101,10 @@ typedef enum {
 // Heart Rate Data
 typedef struct {
     uint16_t heartRate;
+    uint8_t heartRateConfidence;
     uint16_t spO2;
-    uint8_t confidence;
-    uint8_t status;
+    uint8_t spO2Confidence;
+    uint8_t scdState;
 } heartrate_data_t;
 
 
@@ -246,9 +247,10 @@ static void Max32664_taskFxn(UArg a0, UArg a1)
 
     heartrate_data_t heartRateData;
     heartRateData.heartRate = 0;
+    heartRateData.heartRateConfidence = 0;
     heartRateData.spO2 = 0;
-    heartRateData.confidence = 0;
-    heartRateData.status = 0;
+    heartRateData.spO2Confidence = 0;
+    heartRateData.scdState = 0;
 
     // Application main loop
     for(;;)
@@ -259,10 +261,15 @@ static void Max32664_taskFxn(UArg a0, UArg a1)
             Max32664_readHeartRate(&heartRateData);
 
             // Pass message containing heart rate value to the BLE task
-            uint8_t data[2];
+            uint8_t data[sizeof(heartrate_data_t)];
             data[0] = heartRateData.heartRate & 0xFF;
             data[1] = heartRateData.heartRate >> 8;
-            ProjectZero_valueChangeHandler(DATA_HEARTRATE, data);
+            data[2] = heartRateData.heartRateConfidence;
+            data[3] = heartRateData.spO2 & 0xFF;
+            data[4] = heartRateData.spO2 >> 8;
+            data[5] = heartRateData.spO2Confidence;
+            data[6] = heartRateData.scdState;
+            ProjectZero_valueChangeHandler(DATA_MAX32664, data);
 
             Log_info1("Read Heart Rate: %d", heartRateData.heartRate);
         }
@@ -369,9 +376,10 @@ static void Max32664_readHeartRate(heartrate_data_t *data)
 
     // Initialize values
     data->heartRate = 0;
+    data->heartRateConfidence = 0;
     data->spO2 = 0;
-    data->confidence = 0;
-    data->status = 0;
+    data->spO2Confidence = 0;
+    data->scdState = 0;
 
     // Check sensor status before reading FIFO data
     uint8_t sensor_status;

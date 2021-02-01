@@ -80,7 +80,7 @@ extern "C"
 // Sensor data type
 typedef enum
 {
-    DATA_HEARTRATE
+    DATA_MAX32664
 } dataType_t;
 
 /*********************************************************************

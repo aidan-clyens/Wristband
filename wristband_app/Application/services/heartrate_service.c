@@ -70,25 +70,30 @@ CONST uint8_t heartrate_serviceUUID[ATT_BT_UUID_SIZE] =
   LO_UINT16(HEARTRATE_SERVICE_SERV_UUID), HI_UINT16(HEARTRATE_SERVICE_SERV_UUID)
 };
 
-// heartRateValue UUID
-CONST uint8_t heartrate_service_HeartRateValueUUID[ATT_UUID_SIZE] =
+// heartratevalue UUID
+CONST uint8_t heartrate_service_HeartratevalueUUID[ATT_UUID_SIZE] =
 {
   TI_BASE_UUID_128(HEARTRATE_SERVICE_HEARTRATEVALUE_UUID)
 };
-// spO2Value UUID
-CONST uint8_t heartrate_service_SpO2ValueUUID[ATT_UUID_SIZE] =
+// heartrateconfidence UUID
+CONST uint8_t heartrate_service_HeartrateconfidenceUUID[ATT_UUID_SIZE] =
+{
+  TI_BASE_UUID_128(HEARTRATE_SERVICE_HEARTRATECONFIDENCE_UUID)
+};
+// spo2value UUID
+CONST uint8_t heartrate_service_Spo2valueUUID[ATT_UUID_SIZE] =
 {
   TI_BASE_UUID_128(HEARTRATE_SERVICE_SPO2VALUE_UUID)
 };
-// statusValue UUID
-CONST uint8_t heartrate_service_StatusValueUUID[ATT_UUID_SIZE] =
+// spo2confidence UUID
+CONST uint8_t heartrate_service_Spo2confidenceUUID[ATT_UUID_SIZE] =
 {
-  TI_BASE_UUID_128(HEARTRATE_SERVICE_STATUSVALUE_UUID)
+  TI_BASE_UUID_128(HEARTRATE_SERVICE_SPO2CONFIDENCE_UUID)
 };
-// confidenceValue UUID
-CONST uint8_t heartrate_service_ConfidenceValueUUID[ATT_UUID_SIZE] =
+// scdstate UUID
+CONST uint8_t heartrate_service_ScdstateUUID[ATT_UUID_SIZE] =
 {
-  TI_BASE_UUID_128(HEARTRATE_SERVICE_CONFIDENCEVALUE_UUID)
+  TI_BASE_UUID_128(HEARTRATE_SERVICE_SCDSTATE_UUID)
 };
 
 /*********************************************************************
@@ -104,38 +109,46 @@ static heartrate_serviceCBs_t *pAppCBs = NULL;
 // Service declaration
 static CONST gattAttrType_t heartrate_serviceDecl = { ATT_BT_UUID_SIZE, heartrate_serviceUUID };
 
-// Characteristic "HeartRateValue" Properties (for declaration)
-static uint8_t heartrate_service_HeartRateValueProps = GATT_PROP_READ | GATT_PROP_NOTIFY;
+// Characteristic "Heartratevalue" Properties (for declaration)
+static uint8_t heartrate_service_HeartratevalueProps = GATT_PROP_READ | GATT_PROP_NOTIFY;
 
-// Characteristic "HeartRateValue" Value variable
-static uint8_t heartrate_service_HeartRateValueVal[HEARTRATE_SERVICE_HEARTRATEVALUE_LEN] = {0};
+// Characteristic "Heartratevalue" Value variable
+static uint8_t heartrate_service_HeartratevalueVal[HEARTRATE_SERVICE_HEARTRATEVALUE_LEN] = {0};
 
-// Characteristic "HeartRateValue" CCCD
-static gattCharCfg_t *heartrate_service_HeartRateValueConfig;
-// Characteristic "SpO2Value" Properties (for declaration)
-static uint8_t heartrate_service_SpO2ValueProps = GATT_PROP_READ | GATT_PROP_NOTIFY;
+// Characteristic "Heartratevalue" CCCD
+static gattCharCfg_t *heartrate_service_HeartratevalueConfig;
+// Characteristic "Heartrateconfidence" Properties (for declaration)
+static uint8_t heartrate_service_HeartrateconfidenceProps = GATT_PROP_READ | GATT_PROP_NOTIFY;
 
-// Characteristic "SpO2Value" Value variable
-static uint8_t heartrate_service_SpO2ValueVal[HEARTRATE_SERVICE_SPO2VALUE_LEN] = {0};
+// Characteristic "Heartrateconfidence" Value variable
+static uint8_t heartrate_service_HeartrateconfidenceVal[HEARTRATE_SERVICE_HEARTRATECONFIDENCE_LEN] = {0};
 
-// Characteristic "SpO2Value" CCCD
-static gattCharCfg_t *heartrate_service_SpO2ValueConfig;
-// Characteristic "StatusValue" Properties (for declaration)
-static uint8_t heartrate_service_StatusValueProps = GATT_PROP_READ | GATT_PROP_NOTIFY;
+// Characteristic "Heartrateconfidence" CCCD
+static gattCharCfg_t *heartrate_service_HeartrateconfidenceConfig;
+// Characteristic "Spo2value" Properties (for declaration)
+static uint8_t heartrate_service_Spo2valueProps = GATT_PROP_READ | GATT_PROP_NOTIFY;
 
-// Characteristic "StatusValue" Value variable
-static uint8_t heartrate_service_StatusValueVal[HEARTRATE_SERVICE_STATUSVALUE_LEN] = {0};
+// Characteristic "Spo2value" Value variable
+static uint8_t heartrate_service_Spo2valueVal[HEARTRATE_SERVICE_SPO2VALUE_LEN] = {0};
 
-// Characteristic "StatusValue" CCCD
-static gattCharCfg_t *heartrate_service_StatusValueConfig;
-// Characteristic "ConfidenceValue" Properties (for declaration)
-static uint8_t heartrate_service_ConfidenceValueProps = GATT_PROP_READ | GATT_PROP_NOTIFY;
+// Characteristic "Spo2value" CCCD
+static gattCharCfg_t *heartrate_service_Spo2valueConfig;
+// Characteristic "Spo2confidence" Properties (for declaration)
+static uint8_t heartrate_service_Spo2confidenceProps = GATT_PROP_READ | GATT_PROP_NOTIFY;
 
-// Characteristic "ConfidenceValue" Value variable
-static uint8_t heartrate_service_ConfidenceValueVal[HEARTRATE_SERVICE_CONFIDENCEVALUE_LEN] = {0};
+// Characteristic "Spo2confidence" Value variable
+static uint8_t heartrate_service_Spo2confidenceVal[HEARTRATE_SERVICE_SPO2CONFIDENCE_LEN] = {0};
 
-// Characteristic "ConfidenceValue" CCCD
-static gattCharCfg_t *heartrate_service_ConfidenceValueConfig;
+// Characteristic "Spo2confidence" CCCD
+static gattCharCfg_t *heartrate_service_Spo2confidenceConfig;
+// Characteristic "Scdstate" Properties (for declaration)
+static uint8_t heartrate_service_ScdstateProps = GATT_PROP_READ | GATT_PROP_NOTIFY;
+
+// Characteristic "Scdstate" Value variable
+static uint8_t heartrate_service_ScdstateVal[HEARTRATE_SERVICE_SCDSTATE_LEN] = {0};
+
+// Characteristic "Scdstate" CCCD
+static gattCharCfg_t *heartrate_service_ScdstateConfig;
 
 /*********************************************************************
 * Profile Attributes - Table
@@ -150,89 +163,110 @@ static gattAttribute_t heartrate_serviceAttrTbl[] =
     0,
     (uint8_t *)&heartrate_serviceDecl
   },
-    // HeartRateValue Characteristic Declaration
+    // Heartratevalue Characteristic Declaration
     {
       { ATT_BT_UUID_SIZE, characterUUID },
       GATT_PERMIT_READ,
       0,
-      &heartrate_service_HeartRateValueProps
+      &heartrate_service_HeartratevalueProps
     },
-      // HeartRateValue Characteristic Value
+      // Heartratevalue Characteristic Value
       {
-        { ATT_UUID_SIZE, heartrate_service_HeartRateValueUUID },
-        GATT_PERMIT_READ,
+        { ATT_UUID_SIZE, heartrate_service_HeartratevalueUUID },
+        GATT_PERMIT_READ | GATT_PERMIT_WRITE,
         0,
-        heartrate_service_HeartRateValueVal
+        heartrate_service_HeartratevalueVal
       },
-      // HeartRateValue CCCD
+      // Heartratevalue CCCD
       {
         { ATT_BT_UUID_SIZE, clientCharCfgUUID },
         GATT_PERMIT_READ | GATT_PERMIT_WRITE,
         0,
-        (uint8 *)&heartrate_service_HeartRateValueConfig
+        (uint8 *)&heartrate_service_HeartratevalueConfig
       },
-    // SpO2Value Characteristic Declaration
+    // Heartrateconfidence Characteristic Declaration
     {
       { ATT_BT_UUID_SIZE, characterUUID },
       GATT_PERMIT_READ,
       0,
-      &heartrate_service_SpO2ValueProps
+      &heartrate_service_HeartrateconfidenceProps
     },
-      // SpO2Value Characteristic Value
+      // Heartrateconfidence Characteristic Value
       {
-        { ATT_UUID_SIZE, heartrate_service_SpO2ValueUUID },
-        GATT_PERMIT_READ,
+        { ATT_UUID_SIZE, heartrate_service_HeartrateconfidenceUUID },
+        GATT_PERMIT_READ | GATT_PERMIT_WRITE,
         0,
-        heartrate_service_SpO2ValueVal
+        heartrate_service_HeartrateconfidenceVal
       },
-      // SpO2Value CCCD
+      // Heartrateconfidence CCCD
       {
         { ATT_BT_UUID_SIZE, clientCharCfgUUID },
         GATT_PERMIT_READ | GATT_PERMIT_WRITE,
         0,
-        (uint8 *)&heartrate_service_SpO2ValueConfig
+        (uint8 *)&heartrate_service_HeartrateconfidenceConfig
       },
-    // StatusValue Characteristic Declaration
+    // Spo2value Characteristic Declaration
     {
       { ATT_BT_UUID_SIZE, characterUUID },
       GATT_PERMIT_READ,
       0,
-      &heartrate_service_StatusValueProps
+      &heartrate_service_Spo2valueProps
     },
-      // StatusValue Characteristic Value
+      // Spo2value Characteristic Value
       {
-        { ATT_UUID_SIZE, heartrate_service_StatusValueUUID },
-        GATT_PERMIT_READ,
+        { ATT_UUID_SIZE, heartrate_service_Spo2valueUUID },
+        GATT_PERMIT_READ | GATT_PERMIT_WRITE,
         0,
-        heartrate_service_StatusValueVal
+        heartrate_service_Spo2valueVal
       },
-      // StatusValue CCCD
+      // Spo2value CCCD
       {
         { ATT_BT_UUID_SIZE, clientCharCfgUUID },
         GATT_PERMIT_READ | GATT_PERMIT_WRITE,
         0,
-        (uint8 *)&heartrate_service_StatusValueConfig
+        (uint8 *)&heartrate_service_Spo2valueConfig
       },
-    // ConfidenceValue Characteristic Declaration
+    // Spo2confidence Characteristic Declaration
     {
       { ATT_BT_UUID_SIZE, characterUUID },
       GATT_PERMIT_READ,
       0,
-      &heartrate_service_ConfidenceValueProps
+      &heartrate_service_Spo2confidenceProps
     },
-      // ConfidenceValue Characteristic Value
+      // Spo2confidence Characteristic Value
       {
-        { ATT_UUID_SIZE, heartrate_service_ConfidenceValueUUID },
-        GATT_PERMIT_READ,
+        { ATT_UUID_SIZE, heartrate_service_Spo2confidenceUUID },
+        GATT_PERMIT_READ | GATT_PERMIT_WRITE,
         0,
-        heartrate_service_ConfidenceValueVal
+        heartrate_service_Spo2confidenceVal
       },
-      // ConfidenceValue CCCD
+      // Spo2confidence CCCD
       {
         { ATT_BT_UUID_SIZE, clientCharCfgUUID },
         GATT_PERMIT_READ | GATT_PERMIT_WRITE,
         0,
-        (uint8 *)&heartrate_service_ConfidenceValueConfig
+        (uint8 *)&heartrate_service_Spo2confidenceConfig
+      },
+    // Scdstate Characteristic Declaration
+    {
+      { ATT_BT_UUID_SIZE, characterUUID },
+      GATT_PERMIT_READ,
+      0,
+      &heartrate_service_ScdstateProps
+    },
+      // Scdstate Characteristic Value
+      {
+        { ATT_UUID_SIZE, heartrate_service_ScdstateUUID },
+        GATT_PERMIT_READ | GATT_PERMIT_WRITE,
+        0,
+        heartrate_service_ScdstateVal
+      },
+      // Scdstate CCCD
+      {
+        { ATT_BT_UUID_SIZE, clientCharCfgUUID },
+        GATT_PERMIT_READ | GATT_PERMIT_WRITE,
+        0,
+        (uint8 *)&heartrate_service_ScdstateConfig
       },
 };
 
@@ -271,41 +305,50 @@ extern bStatus_t Heartrate_service_AddService( uint8_t rspTaskId )
   uint8_t status;
 
   // Allocate Client Characteristic Configuration table
-  heartrate_service_HeartRateValueConfig = (gattCharCfg_t *)ICall_malloc( sizeof(gattCharCfg_t) * linkDBNumConns );
-  if ( heartrate_service_HeartRateValueConfig == NULL )
+  heartrate_service_HeartratevalueConfig = (gattCharCfg_t *)ICall_malloc( sizeof(gattCharCfg_t) * linkDBNumConns );
+  if ( heartrate_service_HeartratevalueConfig == NULL )
   {
     return ( bleMemAllocError );
   }
 
   // Initialize Client Characteristic Configuration attributes
-  GATTServApp_InitCharCfg( CONNHANDLE_INVALID, heartrate_service_HeartRateValueConfig );
+  GATTServApp_InitCharCfg( CONNHANDLE_INVALID, heartrate_service_HeartratevalueConfig );
   // Allocate Client Characteristic Configuration table
-  heartrate_service_SpO2ValueConfig = (gattCharCfg_t *)ICall_malloc( sizeof(gattCharCfg_t) * linkDBNumConns );
-  if ( heartrate_service_SpO2ValueConfig == NULL )
+  heartrate_service_HeartrateconfidenceConfig = (gattCharCfg_t *)ICall_malloc( sizeof(gattCharCfg_t) * linkDBNumConns );
+  if ( heartrate_service_HeartrateconfidenceConfig == NULL )
   {
     return ( bleMemAllocError );
   }
 
   // Initialize Client Characteristic Configuration attributes
-  GATTServApp_InitCharCfg( CONNHANDLE_INVALID, heartrate_service_SpO2ValueConfig );
+  GATTServApp_InitCharCfg( CONNHANDLE_INVALID, heartrate_service_HeartrateconfidenceConfig );
   // Allocate Client Characteristic Configuration table
-  heartrate_service_StatusValueConfig = (gattCharCfg_t *)ICall_malloc( sizeof(gattCharCfg_t) * linkDBNumConns );
-  if ( heartrate_service_StatusValueConfig == NULL )
+  heartrate_service_Spo2valueConfig = (gattCharCfg_t *)ICall_malloc( sizeof(gattCharCfg_t) * linkDBNumConns );
+  if ( heartrate_service_Spo2valueConfig == NULL )
   {
     return ( bleMemAllocError );
   }
 
   // Initialize Client Characteristic Configuration attributes
-  GATTServApp_InitCharCfg( CONNHANDLE_INVALID, heartrate_service_StatusValueConfig );
+  GATTServApp_InitCharCfg( CONNHANDLE_INVALID, heartrate_service_Spo2valueConfig );
   // Allocate Client Characteristic Configuration table
-  heartrate_service_ConfidenceValueConfig = (gattCharCfg_t *)ICall_malloc( sizeof(gattCharCfg_t) * linkDBNumConns );
-  if ( heartrate_service_ConfidenceValueConfig == NULL )
+  heartrate_service_Spo2confidenceConfig = (gattCharCfg_t *)ICall_malloc( sizeof(gattCharCfg_t) * linkDBNumConns );
+  if ( heartrate_service_Spo2confidenceConfig == NULL )
   {
     return ( bleMemAllocError );
   }
 
   // Initialize Client Characteristic Configuration attributes
-  GATTServApp_InitCharCfg( CONNHANDLE_INVALID, heartrate_service_ConfidenceValueConfig );
+  GATTServApp_InitCharCfg( CONNHANDLE_INVALID, heartrate_service_Spo2confidenceConfig );
+  // Allocate Client Characteristic Configuration table
+  heartrate_service_ScdstateConfig = (gattCharCfg_t *)ICall_malloc( sizeof(gattCharCfg_t) * linkDBNumConns );
+  if ( heartrate_service_ScdstateConfig == NULL )
+  {
+    return ( bleMemAllocError );
+  }
+
+  // Initialize Client Characteristic Configuration attributes
+  GATTServApp_InitCharCfg( CONNHANDLE_INVALID, heartrate_service_ScdstateConfig );
   // Register GATT attribute list and CBs with GATT Server App
   status = GATTServApp_RegisterService( heartrate_serviceAttrTbl,
                                         GATT_NUM_ATTRS( heartrate_serviceAttrTbl ),
@@ -353,10 +396,26 @@ bStatus_t Heartrate_service_SetParameter( uint8_t param, uint16_t len, void *val
     case HEARTRATE_SERVICE_HEARTRATEVALUE_ID:
       if ( len == HEARTRATE_SERVICE_HEARTRATEVALUE_LEN )
       {
-        memcpy(heartrate_service_HeartRateValueVal, value, len);
+        memcpy(heartrate_service_HeartratevalueVal, value, len);
 
         // Try to send notification.
-        GATTServApp_ProcessCharCfg( heartrate_service_HeartRateValueConfig, (uint8_t *)&heartrate_service_HeartRateValueVal, FALSE,
+        GATTServApp_ProcessCharCfg( heartrate_service_HeartratevalueConfig, (uint8_t *)&heartrate_service_HeartratevalueVal, FALSE,
+                                    heartrate_serviceAttrTbl, GATT_NUM_ATTRS( heartrate_serviceAttrTbl ),
+                                    INVALID_TASK_ID,  heartrate_service_ReadAttrCB);
+      }
+      else
+      {
+        ret = bleInvalidRange;
+      }
+      break;
+
+    case HEARTRATE_SERVICE_HEARTRATECONFIDENCE_ID:
+      if ( len == HEARTRATE_SERVICE_HEARTRATECONFIDENCE_LEN )
+      {
+        memcpy(heartrate_service_HeartrateconfidenceVal, value, len);
+
+        // Try to send notification.
+        GATTServApp_ProcessCharCfg( heartrate_service_HeartrateconfidenceConfig, (uint8_t *)&heartrate_service_HeartrateconfidenceVal, FALSE,
                                     heartrate_serviceAttrTbl, GATT_NUM_ATTRS( heartrate_serviceAttrTbl ),
                                     INVALID_TASK_ID,  heartrate_service_ReadAttrCB);
       }
@@ -369,10 +428,10 @@ bStatus_t Heartrate_service_SetParameter( uint8_t param, uint16_t len, void *val
     case HEARTRATE_SERVICE_SPO2VALUE_ID:
       if ( len == HEARTRATE_SERVICE_SPO2VALUE_LEN )
       {
-        memcpy(heartrate_service_SpO2ValueVal, value, len);
+        memcpy(heartrate_service_Spo2valueVal, value, len);
 
         // Try to send notification.
-        GATTServApp_ProcessCharCfg( heartrate_service_SpO2ValueConfig, (uint8_t *)&heartrate_service_SpO2ValueVal, FALSE,
+        GATTServApp_ProcessCharCfg( heartrate_service_Spo2valueConfig, (uint8_t *)&heartrate_service_Spo2valueVal, FALSE,
                                     heartrate_serviceAttrTbl, GATT_NUM_ATTRS( heartrate_serviceAttrTbl ),
                                     INVALID_TASK_ID,  heartrate_service_ReadAttrCB);
       }
@@ -382,13 +441,13 @@ bStatus_t Heartrate_service_SetParameter( uint8_t param, uint16_t len, void *val
       }
       break;
 
-    case HEARTRATE_SERVICE_STATUSVALUE_ID:
-      if ( len == HEARTRATE_SERVICE_STATUSVALUE_LEN )
+    case HEARTRATE_SERVICE_SPO2CONFIDENCE_ID:
+      if ( len == HEARTRATE_SERVICE_SPO2CONFIDENCE_LEN )
       {
-        memcpy(heartrate_service_StatusValueVal, value, len);
+        memcpy(heartrate_service_Spo2confidenceVal, value, len);
 
         // Try to send notification.
-        GATTServApp_ProcessCharCfg( heartrate_service_StatusValueConfig, (uint8_t *)&heartrate_service_StatusValueVal, FALSE,
+        GATTServApp_ProcessCharCfg( heartrate_service_Spo2confidenceConfig, (uint8_t *)&heartrate_service_Spo2confidenceVal, FALSE,
                                     heartrate_serviceAttrTbl, GATT_NUM_ATTRS( heartrate_serviceAttrTbl ),
                                     INVALID_TASK_ID,  heartrate_service_ReadAttrCB);
       }
@@ -398,13 +457,13 @@ bStatus_t Heartrate_service_SetParameter( uint8_t param, uint16_t len, void *val
       }
       break;
 
-    case HEARTRATE_SERVICE_CONFIDENCEVALUE_ID:
-      if ( len == HEARTRATE_SERVICE_CONFIDENCEVALUE_LEN )
+    case HEARTRATE_SERVICE_SCDSTATE_ID:
+      if ( len == HEARTRATE_SERVICE_SCDSTATE_LEN )
       {
-        memcpy(heartrate_service_ConfidenceValueVal, value, len);
+        memcpy(heartrate_service_ScdstateVal, value, len);
 
         // Try to send notification.
-        GATTServApp_ProcessCharCfg( heartrate_service_ConfidenceValueConfig, (uint8_t *)&heartrate_service_ConfidenceValueVal, FALSE,
+        GATTServApp_ProcessCharCfg( heartrate_service_ScdstateConfig, (uint8_t *)&heartrate_service_ScdstateVal, FALSE,
                                     heartrate_serviceAttrTbl, GATT_NUM_ATTRS( heartrate_serviceAttrTbl ),
                                     INVALID_TASK_ID,  heartrate_service_ReadAttrCB);
       }
@@ -436,6 +495,26 @@ bStatus_t Heartrate_service_GetParameter( uint8_t param, uint16_t *len, void *va
   bStatus_t ret = SUCCESS;
   switch ( param )
   {
+    case HEARTRATE_SERVICE_HEARTRATEVALUE_ID:
+      memcpy(value, heartrate_service_HeartratevalueVal, HEARTRATE_SERVICE_HEARTRATEVALUE_LEN);
+      break;
+
+    case HEARTRATE_SERVICE_HEARTRATECONFIDENCE_ID:
+      memcpy(value, heartrate_service_HeartrateconfidenceVal, HEARTRATE_SERVICE_HEARTRATECONFIDENCE_LEN);
+      break;
+
+    case HEARTRATE_SERVICE_SPO2VALUE_ID:
+      memcpy(value, heartrate_service_Spo2valueVal, HEARTRATE_SERVICE_SPO2VALUE_LEN);
+      break;
+
+    case HEARTRATE_SERVICE_SPO2CONFIDENCE_ID:
+      memcpy(value, heartrate_service_Spo2confidenceVal, HEARTRATE_SERVICE_SPO2CONFIDENCE_LEN);
+      break;
+
+    case HEARTRATE_SERVICE_SCDSTATE_ID:
+      memcpy(value, heartrate_service_ScdstateVal, HEARTRATE_SERVICE_SCDSTATE_LEN);
+      break;
+
     default:
       ret = INVALIDPARAMETER;
       break;
@@ -465,8 +544,8 @@ static bStatus_t heartrate_service_ReadAttrCB( uint16_t connHandle, gattAttribut
 {
   bStatus_t status = SUCCESS;
 
-  // See if request is regarding the HeartRateValue Characteristic Value
-if ( ! memcmp(pAttr->type.uuid, heartrate_service_HeartRateValueUUID, pAttr->type.len) )
+  // See if request is regarding the Heartratevalue Characteristic Value
+if ( ! memcmp(pAttr->type.uuid, heartrate_service_HeartratevalueUUID, pAttr->type.len) )
   {
     if ( offset > HEARTRATE_SERVICE_HEARTRATEVALUE_LEN )  // Prevent malicious ATT ReadBlob offsets.
     {
@@ -478,8 +557,21 @@ if ( ! memcmp(pAttr->type.uuid, heartrate_service_HeartRateValueUUID, pAttr->typ
       memcpy(pValue, pAttr->pValue + offset, *pLen);
     }
   }
-  // See if request is regarding the SpO2Value Characteristic Value
-else if ( ! memcmp(pAttr->type.uuid, heartrate_service_SpO2ValueUUID, pAttr->type.len) )
+  // See if request is regarding the Heartrateconfidence Characteristic Value
+else if ( ! memcmp(pAttr->type.uuid, heartrate_service_HeartrateconfidenceUUID, pAttr->type.len) )
+  {
+    if ( offset > HEARTRATE_SERVICE_HEARTRATECONFIDENCE_LEN )  // Prevent malicious ATT ReadBlob offsets.
+    {
+      status = ATT_ERR_INVALID_OFFSET;
+    }
+    else
+    {
+      *pLen = MIN(maxLen, HEARTRATE_SERVICE_HEARTRATECONFIDENCE_LEN - offset);  // Transmit as much as possible
+      memcpy(pValue, pAttr->pValue + offset, *pLen);
+    }
+  }
+  // See if request is regarding the Spo2value Characteristic Value
+else if ( ! memcmp(pAttr->type.uuid, heartrate_service_Spo2valueUUID, pAttr->type.len) )
   {
     if ( offset > HEARTRATE_SERVICE_SPO2VALUE_LEN )  // Prevent malicious ATT ReadBlob offsets.
     {
@@ -491,29 +583,29 @@ else if ( ! memcmp(pAttr->type.uuid, heartrate_service_SpO2ValueUUID, pAttr->typ
       memcpy(pValue, pAttr->pValue + offset, *pLen);
     }
   }
-  // See if request is regarding the StatusValue Characteristic Value
-else if ( ! memcmp(pAttr->type.uuid, heartrate_service_StatusValueUUID, pAttr->type.len) )
+  // See if request is regarding the Spo2confidence Characteristic Value
+else if ( ! memcmp(pAttr->type.uuid, heartrate_service_Spo2confidenceUUID, pAttr->type.len) )
   {
-    if ( offset > HEARTRATE_SERVICE_STATUSVALUE_LEN )  // Prevent malicious ATT ReadBlob offsets.
+    if ( offset > HEARTRATE_SERVICE_SPO2CONFIDENCE_LEN )  // Prevent malicious ATT ReadBlob offsets.
     {
       status = ATT_ERR_INVALID_OFFSET;
     }
     else
     {
-      *pLen = MIN(maxLen, HEARTRATE_SERVICE_STATUSVALUE_LEN - offset);  // Transmit as much as possible
+      *pLen = MIN(maxLen, HEARTRATE_SERVICE_SPO2CONFIDENCE_LEN - offset);  // Transmit as much as possible
       memcpy(pValue, pAttr->pValue + offset, *pLen);
     }
   }
-  // See if request is regarding the ConfidenceValue Characteristic Value
-else if ( ! memcmp(pAttr->type.uuid, heartrate_service_ConfidenceValueUUID, pAttr->type.len) )
+  // See if request is regarding the Scdstate Characteristic Value
+else if ( ! memcmp(pAttr->type.uuid, heartrate_service_ScdstateUUID, pAttr->type.len) )
   {
-    if ( offset > HEARTRATE_SERVICE_CONFIDENCEVALUE_LEN )  // Prevent malicious ATT ReadBlob offsets.
+    if ( offset > HEARTRATE_SERVICE_SCDSTATE_LEN )  // Prevent malicious ATT ReadBlob offsets.
     {
       status = ATT_ERR_INVALID_OFFSET;
     }
     else
     {
-      *pLen = MIN(maxLen, HEARTRATE_SERVICE_CONFIDENCEVALUE_LEN - offset);  // Transmit as much as possible
+      *pLen = MIN(maxLen, HEARTRATE_SERVICE_SCDSTATE_LEN - offset);  // Transmit as much as possible
       memcpy(pValue, pAttr->pValue + offset, *pLen);
     }
   }
@@ -556,6 +648,91 @@ static bStatus_t heartrate_service_WriteAttrCB( uint16_t connHandle, gattAttribu
     // Allow only notifications.
     status = GATTServApp_ProcessCCCWriteReq( connHandle, pAttr, pValue, len,
                                              offset, GATT_CLIENT_CFG_NOTIFY);
+  }
+  // See if request is regarding the Heartratevalue Characteristic Value
+  else if ( ! memcmp(pAttr->type.uuid, heartrate_service_HeartratevalueUUID, pAttr->type.len) )
+  {
+    if ( offset + len > HEARTRATE_SERVICE_HEARTRATEVALUE_LEN )
+    {
+      status = ATT_ERR_INVALID_OFFSET;
+    }
+    else
+    {
+      // Copy pValue into the variable we point to from the attribute table.
+      memcpy(pAttr->pValue + offset, pValue, len);
+
+      // Only notify application if entire expected value is written
+      if ( offset + len == HEARTRATE_SERVICE_HEARTRATEVALUE_LEN)
+        paramID = HEARTRATE_SERVICE_HEARTRATEVALUE_ID;
+    }
+  }
+  // See if request is regarding the Heartrateconfidence Characteristic Value
+  else if ( ! memcmp(pAttr->type.uuid, heartrate_service_HeartrateconfidenceUUID, pAttr->type.len) )
+  {
+    if ( offset + len > HEARTRATE_SERVICE_HEARTRATECONFIDENCE_LEN )
+    {
+      status = ATT_ERR_INVALID_OFFSET;
+    }
+    else
+    {
+      // Copy pValue into the variable we point to from the attribute table.
+      memcpy(pAttr->pValue + offset, pValue, len);
+
+      // Only notify application if entire expected value is written
+      if ( offset + len == HEARTRATE_SERVICE_HEARTRATECONFIDENCE_LEN)
+        paramID = HEARTRATE_SERVICE_HEARTRATECONFIDENCE_ID;
+    }
+  }
+  // See if request is regarding the Spo2value Characteristic Value
+  else if ( ! memcmp(pAttr->type.uuid, heartrate_service_Spo2valueUUID, pAttr->type.len) )
+  {
+    if ( offset + len > HEARTRATE_SERVICE_SPO2VALUE_LEN )
+    {
+      status = ATT_ERR_INVALID_OFFSET;
+    }
+    else
+    {
+      // Copy pValue into the variable we point to from the attribute table.
+      memcpy(pAttr->pValue + offset, pValue, len);
+
+      // Only notify application if entire expected value is written
+      if ( offset + len == HEARTRATE_SERVICE_SPO2VALUE_LEN)
+        paramID = HEARTRATE_SERVICE_SPO2VALUE_ID;
+    }
+  }
+  // See if request is regarding the Spo2confidence Characteristic Value
+  else if ( ! memcmp(pAttr->type.uuid, heartrate_service_Spo2confidenceUUID, pAttr->type.len) )
+  {
+    if ( offset + len > HEARTRATE_SERVICE_SPO2CONFIDENCE_LEN )
+    {
+      status = ATT_ERR_INVALID_OFFSET;
+    }
+    else
+    {
+      // Copy pValue into the variable we point to from the attribute table.
+      memcpy(pAttr->pValue + offset, pValue, len);
+
+      // Only notify application if entire expected value is written
+      if ( offset + len == HEARTRATE_SERVICE_SPO2CONFIDENCE_LEN)
+        paramID = HEARTRATE_SERVICE_SPO2CONFIDENCE_ID;
+    }
+  }
+  // See if request is regarding the Scdstate Characteristic Value
+  else if ( ! memcmp(pAttr->type.uuid, heartrate_service_ScdstateUUID, pAttr->type.len) )
+  {
+    if ( offset + len > HEARTRATE_SERVICE_SCDSTATE_LEN )
+    {
+      status = ATT_ERR_INVALID_OFFSET;
+    }
+    else
+    {
+      // Copy pValue into the variable we point to from the attribute table.
+      memcpy(pAttr->pValue + offset, pValue, len);
+
+      // Only notify application if entire expected value is written
+      if ( offset + len == HEARTRATE_SERVICE_SCDSTATE_LEN)
+        paramID = HEARTRATE_SERVICE_SCDSTATE_ID;
+    }
   }
   else
   {
