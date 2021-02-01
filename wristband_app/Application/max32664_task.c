@@ -264,6 +264,9 @@ static void Max32664_taskFxn(UArg a0, UArg a1)
     heartRateData.spO2Confidence = 0;
     heartRateData.scdState = 0;
 
+    uint8_t byte_buffer[1];
+    uint8_t word_buffer[2];
+
     // Application main loop
     for(;;)
     {
@@ -272,18 +275,31 @@ static void Max32664_taskFxn(UArg a0, UArg a1)
             // Read heart rate from MAX32664
             Max32664_readHeartRate(&heartRateData);
 
-            // Pass message containing heart rate value to the BLE task
-            uint8_t data[sizeof(heartrate_data_t)];
-            data[0] = heartRateData.heartRate & 0xFF;
-            data[1] = heartRateData.heartRate >> 8;
-            data[2] = heartRateData.heartRateConfidence;
-            data[3] = heartRateData.spO2 & 0xFF;
-            data[4] = heartRateData.spO2 >> 8;
-            data[5] = heartRateData.spO2Confidence;
-            data[6] = heartRateData.scdState;
-            ProjectZero_valueChangeHandler(DATA_MAX32664, data);
+            // Pass messages containing heart rate value to the BLE task
+            word_buffer[0] = heartRateData.heartRate & 0xFF;
+            word_buffer[1] = heartRateData.heartRate >> 8;
+            ProjectZero_valueChangeHandler(DATA_HEARTRATE, word_buffer);
 
-            Log_info1("Read Heart Rate: %d", heartRateData.heartRate);
+            byte_buffer[0] = heartRateData.heartRateConfidence;
+            ProjectZero_valueChangeHandler(DATA_HEARTRATE_CONFIDENCE, byte_buffer);
+
+            word_buffer[0] = heartRateData.spO2 & 0xFF;
+            word_buffer[1] = heartRateData.spO2 >> 8;
+            ProjectZero_valueChangeHandler(DATA_SPO2, word_buffer);
+
+            byte_buffer[0] = heartRateData.spO2Confidence;
+            ProjectZero_valueChangeHandler(DATA_SPO2_CONFIDENCE, byte_buffer);
+
+            byte_buffer[0] = heartRateData.scdState;
+            ProjectZero_valueChangeHandler(DATA_SCD_STATE, byte_buffer);
+
+            Log_info5("Read: Heart Rate: %d - Heart Rate Confidence: %d - SpO2: %d - SpO2 Confidence: %d - SCD state: %d",
+                      heartRateData.heartRate,
+                      heartRateData.heartRateConfidence,
+                      heartRateData.spO2,
+                      heartRateData.spO2Confidence,
+                      heartRateData.scdState
+            );
         }
     }
 }
@@ -415,18 +431,23 @@ static void Max32664_readHeartRate(heartrate_data_t *data)
     uint8_t num_bytes = num_samples * MAX32664_NORMAL_REPORT_ALGORITHM_ONLY_SIZE;
 
     // TODO: Read the data stored in the FIFO
-    ret = Max32664_readFifoData(num_bytes);
-    if (ret != STATUS_SUCCESS) {
-        Log_error0("Error reading report from FIFO");
-        return;
-    }
-    Log_info1("Read %d samples from FIFO", num_samples);
+//    uint8_t buffer[5];
+//    ret = Max32664_readFifoData(reportBuffer, num_bytes);
+//    if (ret != STATUS_SUCCESS) {
+//        Log_error1("Error reading report from FIFO: %d", ret);
+//        return;
+//    }
+//    Log_info1("Read %d samples from FIFO", num_samples);
 
 //    for (int i = 0; i < num_bytes; i++) {
 //        if (reportBuffer[i] != 0) Log_info1("%d", reportBuffer[i]);
 //    }
 
-    data->heartRate++;
+    data->heartRate = 120;
+    data->heartRateConfidence = 85;
+    data->spO2 = 200;
+    data->spO2Confidence = 90;
+    data->scdState = 1;
 }
 
 

@@ -489,10 +489,34 @@ void ProjectZero_valueChangeHandler(dataType_t type, uint8_t data[])
     {
         switch (type)
         {
-        case DATA_MAX32664:
-            charData->svcUUID = HEARTRATE_SERVICE_HEARTRATEVALUE_UUID;
+        case DATA_HEARTRATE:
+            charData->svcUUID = HEARTRATE_SERVICE_SERV_UUID;
             charData->paramID = HEARTRATE_SERVICE_HEARTRATEVALUE_ID;
             charData->dataLen = HEARTRATE_SERVICE_HEARTRATEVALUE_LEN;
+            memcpy(charData->data, data, charData->dataLen);
+            break;
+        case DATA_HEARTRATE_CONFIDENCE:
+            charData->svcUUID = HEARTRATE_SERVICE_SERV_UUID;
+            charData->paramID = HEARTRATE_SERVICE_HEARTRATECONFIDENCE_ID;
+            charData->dataLen = HEARTRATE_SERVICE_HEARTRATECONFIDENCE_LEN;
+            memcpy(charData->data, data, charData->dataLen);
+            break;
+        case DATA_SPO2:
+            charData->svcUUID = HEARTRATE_SERVICE_SERV_UUID;
+            charData->paramID = HEARTRATE_SERVICE_SPO2VALUE_ID;
+            charData->dataLen = HEARTRATE_SERVICE_SPO2VALUE_LEN;
+            memcpy(charData->data, data, charData->dataLen);
+            break;
+        case DATA_SPO2_CONFIDENCE:
+            charData->svcUUID = HEARTRATE_SERVICE_SERV_UUID;
+            charData->paramID = HEARTRATE_SERVICE_SPO2CONFIDENCE_ID;
+            charData->dataLen = HEARTRATE_SERVICE_SPO2CONFIDENCE_LEN;
+            memcpy(charData->data, data, charData->dataLen);
+            break;
+        case DATA_SCD_STATE:
+            charData->svcUUID = HEARTRATE_SERVICE_SERV_UUID;
+            charData->paramID = HEARTRATE_SERVICE_SCDSTATE_ID;
+            charData->dataLen = HEARTRATE_SERVICE_SCDSTATE_LEN;
             memcpy(charData->data, data, charData->dataLen);
             break;
         default:
@@ -2056,9 +2080,9 @@ static void ProjectZero_updateCharVal(pzCharacteristicData_t *pCharData)
 {
     switch(pCharData->svcUUID)
     {
-    case HEARTRATE_SERVICE_HEARTRATEVALUE_UUID:
+    case HEARTRATE_SERVICE_SERV_UUID:
         Heartrate_service_SetParameter(pCharData->paramID, pCharData->dataLen,
-                                        pCharData->data);
+                                       pCharData->data);
         break;
     }
 }
