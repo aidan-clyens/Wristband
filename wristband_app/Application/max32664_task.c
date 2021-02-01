@@ -23,7 +23,6 @@
 #include <icall.h>
 #include <project_zero.h>
 #include <util.h>
-#include <i2c_util.h>
 
 
 /*********************************************************************
@@ -136,6 +135,10 @@ static Semaphore_Handle heartRateSemaphore;
 
 static uint8_t reportBuffer[MAX32664_MAX_NUM_SAMPLES * MAX32664_NORMAL_REPORT_ALGORITHM_ONLY_SIZE];
 
+// I2C
+static I2C_Handle i2cHandle;
+static I2C_Transaction transaction;
+
 
 /*********************************************************************
  * LOCAL FUNCTIONS
@@ -159,11 +162,14 @@ static status_t Max32664_enableAutoGainControlAlgorithm(uint8_t enable);
 static status_t Max32664_enableWhrmWspo2Algorithm(uint8_t enableMode);
 static status_t Max32664_enableMax86141Sensor(uint8_t enable);
 static status_t Max32664_readFifoNumSamples(uint8_t *num_samples);
-static status_t Max32664_readFifoData(int num_bytes);
+static status_t Max32664_readFifoData(uint8_t *data, int num_bytes);
 
 // MAX32664 helper functions
 static status_t Max32664_readByte(uint8_t family, uint8_t index, uint8_t *data);
 static status_t Max32664_writeByte(uint8_t family, uint8_t index, uint8_t data, int delay);
+
+// I2C
+static bool Max32664_i2cInit(void);
 
 
 /*********************************************************************
@@ -201,6 +207,12 @@ static void Max32664_init(void)
     // Initialize GPIO pins
     GPIO_setConfig(Board_GPIO_MAX32664_MFIO, GPIO_CFG_OUT_STD | GPIO_CFG_OUT_LOW);
     GPIO_setConfig(Board_GPIO_MAX32664_RESET, GPIO_CFG_OUT_STD | GPIO_CFG_OUT_HIGH);
+
+    // Initialize I2C
+    if (!Max32664_i2cInit()) {
+        Log_error0("Startup failed. Exiting");
+        Task_exit();
+    }
 
     // Create semaphores
     Semaphore_Params semParamsHeartRate;
@@ -519,38 +531,31 @@ static status_t Max32664_readFifoNumSamples(uint8_t *num_samples)
  * @param   data - Buffer to store FIFO data
  * @param   num_bytes - Number of bytes to read from the FIFO
  */
-static status_t Max32664_readFifoData(int num_bytes)
+static status_t Max32664_readFifoData(uint8_t *data, int num_bytes)
 {
-    uint8_t familyByte = MAX32664_READ_OUTPUT_FIFO;
-    uint8_t indexByte = MAX32664_READ_FIFO_DATA;
     status_t ret = STATUS_UNKNOWN_ERROR;
-    bool success = false;
 
-    Util_i2cBeginTransmission(MAX32664_ADDRESS);
-    Util_i2cWrite(familyByte);
-    Util_i2cWrite(indexByte);
-    success = Util_i2cEndTransmission();
-    if (!success) return ret;
+    uint8_t txBuffer[2];
 
-    Task_sleep(MAX32664_CMD_DELAY * (1000 / Clock_tickPeriod));
+    txBuffer[0] = MAX32664_READ_OUTPUT_FIFO;
+    txBuffer[1] = MAX32664_READ_FIFO_DATA;
 
-    Util_i2cBeginTransmission(MAX32664_ADDRESS);
-    Util_i2cReadRequest(num_bytes + 1);
-    success = Util_i2cEndTransmission();
-    if (!success) return ret;
+    transaction.writeBuf   = txBuffer;
+    transaction.writeCount = 2;
+    transaction.readBuf    = data;
+    transaction.readCount  = num_bytes + 1;
 
-    // Read value bytes
-    int i = 0;
-    Log_info1("Bytes: %d", Util_i2cAvailable());
-    while (Util_i2cAvailable() > 1) {
-        reportBuffer[i] = Util_i2cRead();
-        i++;
+    if (I2C_transfer(i2cHandle, &transaction)) {
+        Log_info0("I2C transfer successful");
+        for (int i = 0; i < num_bytes; i++) {
+            Log_info1("%d", data[i]);
+        }
+        ret = (status_t)data[num_bytes];
+    }
+    else {
+        Log_error0("I2C transfer failed");
     }
 
-    // Read status byte
-    if (Util_i2cAvailable()) {
-        ret = (status_t)Util_i2cRead();
-    }
 
     return ret;
 }
@@ -569,28 +574,25 @@ static status_t Max32664_readFifoData(int num_bytes)
 static status_t Max32664_writeByte(uint8_t family, uint8_t index, uint8_t data, int delay)
 {
     status_t ret = STATUS_UNKNOWN_ERROR;
-    bool success = false;
 
-    // Write value
-    Util_i2cBeginTransmission(MAX32664_ADDRESS);
-    Util_i2cWrite(family);
-    Util_i2cWrite(index);
-    Util_i2cWrite(data);
-    success = Util_i2cEndTransmission();
-    if (!success) return ret;
+    uint8_t txBuffer[3];
+    uint8_t rxBuffer[1];
 
-    // Wait to value to update on slave
-    Task_sleep(delay * (1000 / Clock_tickPeriod));
+    txBuffer[0] = family;
+    txBuffer[1] = index;
+    txBuffer[2] = data;
 
-    // Read status
-    Util_i2cBeginTransmission(MAX32664_ADDRESS);
-    Util_i2cReadRequest(1);
-    success = Util_i2cEndTransmission();
-    if (!success) return ret;
+    transaction.writeBuf   = txBuffer;
+    transaction.writeCount = 3;
+    transaction.readBuf    = rxBuffer;
+    transaction.readCount  = 1;
 
-    // Read status byte
-    if (Util_i2cAvailable()) {
-        ret = (status_t)Util_i2cRead();
+    if (I2C_transfer(i2cHandle, &transaction)) {
+        Log_info0("I2C transfer successful");
+        ret = (status_t)rxBuffer[0];
+    }
+    else {
+        Log_error0("I2C transfer failed");
     }
 
     return ret;
@@ -608,30 +610,27 @@ static status_t Max32664_writeByte(uint8_t family, uint8_t index, uint8_t data, 
 static status_t Max32664_readByte(uint8_t family, uint8_t index, uint8_t *data)
 {
     status_t ret = STATUS_UNKNOWN_ERROR;
-    bool success = false;
     (*data) = 0;
 
-    Util_i2cBeginTransmission(MAX32664_ADDRESS);
-    Util_i2cWrite(family);
-    Util_i2cWrite(index);
-    success = Util_i2cEndTransmission();
-    if (!success) return ret;
+    uint8_t txBuffer[2];
+    uint8_t rxBuffer[2];
 
-    Task_sleep(MAX32664_CMD_DELAY * (1000 / Clock_tickPeriod));
+    txBuffer[0] = family;
+    txBuffer[1] = index;
 
-    Util_i2cBeginTransmission(MAX32664_ADDRESS);
-    Util_i2cReadRequest(2);
-    success = Util_i2cEndTransmission();
-    if (!success) return ret;
+    transaction.writeBuf   = txBuffer;
+    transaction.writeCount = 2;
+    transaction.readBuf    = rxBuffer;
+    transaction.readCount  = 2;
 
-    // Read value byte
-    if (Util_i2cAvailable()) {
-        (*data) = Util_i2cRead();
+    if (I2C_transfer(i2cHandle, &transaction)) {
+        Log_info0("I2C transfer successful");
+        (*data) = rxBuffer[0];
+        ret = (status_t)rxBuffer[1];
+        Log_info2("data=%d, ret=%d", (*data), ret);
     }
-
-    // Read status byte
-    if (Util_i2cAvailable()) {
-        ret = (status_t)Util_i2cRead();
+    else {
+        Log_error0("I2C transfer failed");
     }
 
     return ret;
@@ -647,4 +646,30 @@ static status_t Max32664_readByte(uint8_t family, uint8_t index, uint8_t *data)
  */
 static void Max32664_heartRateSwiFxn(UArg a0) {
     Semaphore_post(heartRateSemaphore);
+}
+
+
+/*********************************************************************
+ * @fn      Max32664_i2cInit
+ *
+ * @brief   Initialization the master I2C connection with device.
+ */
+static bool Max32664_i2cInit(void)
+{
+    I2C_Params i2cParams;
+
+    I2C_init();
+
+    // Configure I2C
+    I2C_Params_init(&i2cParams);
+    i2cParams.transferMode = I2C_MODE_BLOCKING;
+    i2cParams.bitRate = I2C_400kHz;
+    i2cHandle = I2C_open(Board_I2C_TMP, &i2cParams);
+    if (i2cHandle == NULL) {
+        Log_error0("I2C initialization failed!");
+        return false;
+    }
+    transaction.slaveAddress = MAX32664_ADDRESS;
+    Log_info0("I2C initialized");
+    return true;
 }

@@ -67,7 +67,6 @@
 #include "bcomdef.h"
 #include "project_zero.h"
 #include "max32664_task.h"
-#include "i2c_util.h"
 
 #ifndef USE_DEFAULT_USER_CFG
 #include "ble_user_config.h"
@@ -150,12 +149,6 @@ int main()
 
     /* Initialize GPIO */
     GPIO_init();
-
-    /* Initialize I2C */
-    if (!Util_i2cInit()) {
-        Log_error0("Startup failed. Exiting");
-        return(1);
-    }
 
     /* Initialize user tasks */
     ProjectZero_createTask();
