@@ -84,7 +84,8 @@ typedef enum
     DATA_HEARTRATE_CONFIDENCE,
     DATA_SPO2,
     DATA_SPO2_CONFIDENCE,
-    DATA_SCD_STATE
+    DATA_SCD_STATE,
+    DATA_ALERT_ACTIVE
 } dataType_t;
 
 /*********************************************************************

@@ -76,6 +76,7 @@
 /* Bluetooth Profiles */
 #include <devinfoservice.h>
 #include <services/heartrate_service.h>
+#include <services/emergency_alert_service.h>
 
 /* Application specific includes */
 #include <Board.h>
@@ -519,6 +520,12 @@ void ProjectZero_valueChangeHandler(dataType_t type, uint8_t data[])
             charData->dataLen = HEARTRATE_SERVICE_SCDSTATE_LEN;
             memcpy(charData->data, data, charData->dataLen);
             break;
+        case DATA_ALERT_ACTIVE:
+            charData->svcUUID = EMERGENCY_ALERT_SERVICE_SERV_UUID;
+            charData->paramID = EMERGENCY_ALERT_SERVICE_ALERTACTIVE_ID;
+            charData->dataLen = EMERGENCY_ALERT_SERVICE_ALERTACTIVE_LEN;
+            memcpy(charData->data, data, charData->dataLen);
+            break;
         default:
             ICall_free(charData);
             return;
@@ -640,6 +647,7 @@ static void ProjectZero_init(void)
 
     // TODO: Add services to GATT server and give ID of this task for Indication acks.
     Heartrate_service_AddService( selfEntity );
+    Emergency_alert_service_AddService( selfEntity );
 
     // TODO: Register callbacks with the generated services that
     // can generate events (writes received) to the application
@@ -654,6 +662,9 @@ static void ProjectZero_init(void)
     Heartrate_service_SetParameter(HEARTRATE_SERVICE_SPO2VALUE_ID, HEARTRATE_SERVICE_SPO2VALUE_LEN, initVal);
     Heartrate_service_SetParameter(HEARTRATE_SERVICE_SPO2CONFIDENCE_ID, HEARTRATE_SERVICE_SPO2CONFIDENCE_LEN, initVal);
     Heartrate_service_SetParameter(HEARTRATE_SERVICE_SCDSTATE_ID, HEARTRATE_SERVICE_SCDSTATE_LEN, initVal);
+
+    Emergency_alert_service_SetParameter(EMERGENCY_ALERT_SERVICE_ALERTTYPE_ID, EMERGENCY_ALERT_SERVICE_ALERTTYPE_LEN, initVal);
+    Emergency_alert_service_SetParameter(EMERGENCY_ALERT_SERVICE_ALERTACTIVE_ID, EMERGENCY_ALERT_SERVICE_ALERTACTIVE_LEN, initVal);
 
     // Start Bond Manager and register callback
     VOID GAPBondMgr_Register(&ProjectZero_BondMgrCBs);
@@ -912,6 +923,7 @@ static void ProjectZero_processApplicationMessage(pzMsg_t *pMsg)
       {
           pzButtonState_t *pButtonState = (pzButtonState_t *)pMsg->pData;
           ProjectZero_handleButtonPress(pButtonState);
+          // TODO: Trigger emergency alert
       }
       break;
 
@@ -1792,6 +1804,19 @@ static void ProjectZero_handleButtonPress(pzButtonState_t *pState)
                           ANSI_COLOR(FG_GREEN)"pressed"ANSI_COLOR(ATTR_RESET) :
                           ANSI_COLOR(FG_YELLOW)"released"ANSI_COLOR(ATTR_RESET)
                          ));
+
+    uint8_t alert_active;
+    uint16_t length;
+    Emergency_alert_service_GetParameter(EMERGENCY_ALERT_SERVICE_ALERTACTIVE_ID, &length, &alert_active);
+
+    if (alert_active == 0) {
+        if (pState->pinId == Board_PIN_BUTTON1 && pState->state) {
+            Log_info0("Triggering Emergency Alert");
+            uint8_t data[1];
+            data[0] = 1;
+            ProjectZero_valueChangeHandler(DATA_ALERT_ACTIVE, data);
+        }
+    }
 }
 
 /******************************************************************************
@@ -2083,6 +2108,10 @@ static void ProjectZero_updateCharVal(pzCharacteristicData_t *pCharData)
     case HEARTRATE_SERVICE_SERV_UUID:
         Heartrate_service_SetParameter(pCharData->paramID, pCharData->dataLen,
                                        pCharData->data);
+        break;
+    case EMERGENCY_ALERT_SERVICE_SERV_UUID:
+        Emergency_alert_service_SetParameter(pCharData->paramID, pCharData->dataLen,
+                                               pCharData->data);
         break;
     }
 }
