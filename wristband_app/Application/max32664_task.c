@@ -21,6 +21,7 @@
 #include <Board.h>
 
 #include <icall.h>
+#include <max32664_task.h>
 #include <project_zero.h>
 #include <util.h>
 
@@ -69,6 +70,13 @@
 /*********************************************************************
  * TYPEDEFS
  */
+// MAX32664 Operating mode
+typedef enum {
+    RESET_MODE,
+    HEARTRATE_MODE,
+    ECG_MODE
+} max32664_operating_mode_t;
+
 // MAX32664 Output Mode
 typedef enum {
   OUTPUT_MODE_PAUSE = 0x00,
@@ -133,7 +141,14 @@ static Clock_Handle heartrateClockHandle;
 // Semaphores
 static Semaphore_Handle heartRateSemaphore;
 
+// Queue object used for app messages
+static Queue_Struct appMsgQueue;
+static Queue_Handle appMsgQueueHandle;
+
+// Bio Sensor Hub data buffer
 static uint8_t reportBuffer[MAX32664_MAX_NUM_SAMPLES * MAX32664_NORMAL_REPORT_ALGORITHM_ONLY_SIZE];
+
+static max32664_operating_mode_t operatingMode;
 
 // I2C
 static I2C_Handle i2cHandle;
@@ -148,6 +163,7 @@ static void Max32664_init(void);
 static void Max32664_taskFxn(UArg a0, UArg a1);
 
 static void Max32664_heartRateSwiFxn(UArg a0);
+static void Max32664_processApplicationMessage(max32664_msg_t *pMsg);
 
 // MAX32664 commands
 static void Max32664_initApplicationMode();
@@ -219,30 +235,23 @@ static void Max32664_init(void)
     Semaphore_Params_init(&semParamsHeartRate);
     heartRateSemaphore = Semaphore_create(0, &semParamsHeartRate, Error_IGNORE);
 
-    // Initialize MAX32664 sensor
-    Max32664_initApplicationMode();
-
-    // Read test
-    uint8_t sensor_status;
-    status_t ret = Max32664_readSensorHubStatus(&sensor_status);
-    if (ret != STATUS_SUCCESS || sensor_status == 1) {
-        Log_error0("MAX32644 not connected");
-    }
-    else
-    {
-        Log_info0("MAX32664 connected successfully");
-    }
-
-    Max32664_initHeartRateAlgorithm();
+    // Create message queue
+    Queue_construct(&appMsgQueue, NULL);
+    appMsgQueueHandle = Queue_handle(&appMsgQueue);
 
     // Create clocks
     heartrateClockHandle = Util_constructClock(&heartrateClock,
                                                Max32664_heartRateSwiFxn,
                                                MAX32664_REPORT_PERIOD_MS,
                                                MAX32664_REPORT_PERIOD_MS,
-                                               1,
+                                               0,
                                                NULL
                                                );
+
+    operatingMode = RESET_MODE;
+
+    // Initialize MAX32664 sensor
+    Max32664_enqueueMsg(INIT_HEARTRATE_MODE, NULL);
 }
 
 /*********************************************************************
@@ -270,37 +279,99 @@ static void Max32664_taskFxn(UArg a0, UArg a1)
     // Application main loop
     for(;;)
     {
-        Semaphore_pend(heartRateSemaphore, BIOS_WAIT_FOREVER);
-        if (heartRateAlgorithmInitialized) {
-            // Read heart rate from MAX32664
-            Max32664_readHeartRate(&heartRateData);
+        switch (operatingMode) {
+            case HEARTRATE_MODE: {
+                Semaphore_pend(heartRateSemaphore, BIOS_WAIT_FOREVER);
+                if (heartRateAlgorithmInitialized) {
+                    // Read heart rate from MAX32664
+                    Max32664_readHeartRate(&heartRateData);
 
-            // Pass messages containing heart rate value to the BLE task
-            word_buffer[0] = heartRateData.heartRate & 0xFF;
-            word_buffer[1] = heartRateData.heartRate >> 8;
-            ProjectZero_valueChangeHandler(DATA_HEARTRATE, word_buffer);
+                    // Pass messages containing heart rate value to the BLE task
+                    word_buffer[0] = heartRateData.heartRate & 0xFF;
+                    word_buffer[1] = heartRateData.heartRate >> 8;
+                    ProjectZero_valueChangeHandler(DATA_HEARTRATE, word_buffer);
 
-            byte_buffer[0] = heartRateData.heartRateConfidence;
-            ProjectZero_valueChangeHandler(DATA_HEARTRATE_CONFIDENCE, byte_buffer);
+                    byte_buffer[0] = heartRateData.heartRateConfidence;
+                    ProjectZero_valueChangeHandler(DATA_HEARTRATE_CONFIDENCE, byte_buffer);
 
-            word_buffer[0] = heartRateData.spO2 & 0xFF;
-            word_buffer[1] = heartRateData.spO2 >> 8;
-            ProjectZero_valueChangeHandler(DATA_SPO2, word_buffer);
+                    word_buffer[0] = heartRateData.spO2 & 0xFF;
+                    word_buffer[1] = heartRateData.spO2 >> 8;
+                    ProjectZero_valueChangeHandler(DATA_SPO2, word_buffer);
 
-            byte_buffer[0] = heartRateData.spO2Confidence;
-            ProjectZero_valueChangeHandler(DATA_SPO2_CONFIDENCE, byte_buffer);
+                    byte_buffer[0] = heartRateData.spO2Confidence;
+                    ProjectZero_valueChangeHandler(DATA_SPO2_CONFIDENCE, byte_buffer);
 
-            byte_buffer[0] = heartRateData.scdState;
-            ProjectZero_valueChangeHandler(DATA_SCD_STATE, byte_buffer);
+                    byte_buffer[0] = heartRateData.scdState;
+                    ProjectZero_valueChangeHandler(DATA_SCD_STATE, byte_buffer);
 
-            Log_info5("Read: Heart Rate: %d - Heart Rate Confidence: %d - SpO2: %d - SpO2 Confidence: %d - SCD state: %d",
-                      heartRateData.heartRate,
-                      heartRateData.heartRateConfidence,
-                      heartRateData.spO2,
-                      heartRateData.spO2Confidence,
-                      heartRateData.scdState
-            );
+                    Log_info5("Read: Heart Rate: %d - Heart Rate Confidence: %d - SpO2: %d - SpO2 Confidence: %d - SCD state: %d",
+                              heartRateData.heartRate,
+                              heartRateData.heartRateConfidence,
+                              heartRateData.spO2,
+                              heartRateData.spO2Confidence,
+                              heartRateData.scdState
+                    );
+                }
+
+                break;
+            }
+            default:
+                break;
         }
+
+        // Process messages sent from another task or another context.
+        while(!Queue_empty(appMsgQueueHandle)) {
+            max32664_msg_t *pMsg = (max32664_msg_t *)Util_dequeueMsg(appMsgQueueHandle);
+            if(pMsg) {
+                Max32664_processApplicationMessage(pMsg);
+                // Free the received message.
+                ICall_free(pMsg);
+            }
+        }
+    }
+}
+
+/*********************************************************************
+ * @fn      Max32663_processApplicationMessage
+ *
+ * @brief   Process application messages.
+ *
+ * @param   pMsg  Pointer to the message of type max32664_msg_t.
+ */
+static void Max32664_processApplicationMessage(max32664_msg_t *pMsg) {
+    switch(pMsg->event) {
+        case INIT_HEARTRATE_MODE: {
+            Log_info0("Initializing Heart Rate Operating Mode");
+            Max32664_initApplicationMode();
+
+            // Read test
+            uint8_t sensor_status;
+            status_t ret = Max32664_readSensorHubStatus(&sensor_status);
+            if (ret != STATUS_SUCCESS || sensor_status == 1) {
+                Log_error0("MAX32644 not connected");
+            }
+            else
+            {
+                Log_info0("MAX32664 connected successfully");
+            }
+
+            Max32664_initHeartRateAlgorithm();
+
+            Util_startClock(&heartrateClock);
+
+            operatingMode = HEARTRATE_MODE;
+        }
+            break;
+        case INIT_ECG_MODE:
+            Util_stopClock(&heartrateClock);
+            operatingMode = ECG_MODE;
+            break;
+        default:
+            break;
+    }
+
+    if(pMsg->pData != NULL) {
+        ICall_free(pMsg->pData);
     }
 }
 
@@ -423,7 +494,7 @@ static void Max32664_readHeartRate(heartrate_data_t *data)
     uint8_t num_samples = 0;
     ret = Max32664_readFifoNumSamples(&num_samples);
     if (ret != STATUS_SUCCESS) {
-        Log_error0("Error reading number of FIFO samples");
+        Log_error1("Error reading number of FIFO samples: %d", ret);
         return;
     }
     Log_info1("Reading %d samples from FIFO", num_samples);
@@ -693,4 +764,28 @@ static bool Max32664_i2cInit(void)
     transaction.slaveAddress = MAX32664_ADDRESS;
     Log_info0("I2C initialized");
     return true;
+}
+
+/*********************************************************************
+ * @fn     Max32664_enqueueMsg
+ *
+ * @brief  Utility function that sends the event and data to the application.
+ *         Handled in the task loop.
+ *
+ * @param  event    Event type
+ * @param  pData    Pointer to message data
+ */
+bool Max32664_enqueueMsg(max32664_event_t event, void *pData) {
+    uint8_t success;
+    max32664_msg_t *pMsg = ICall_malloc(sizeof(max32664_msg_t));
+
+    if(pMsg) {
+        pMsg->event = event;
+        pMsg->pData = pData;
+
+        success = Util_enqueueMsg(appMsgQueueHandle, syncEvent, (uint8_t *)pMsg);
+        return success;
+    }
+
+    return false;
 }

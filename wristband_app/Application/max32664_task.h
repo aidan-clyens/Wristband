@@ -14,6 +14,21 @@ extern "C"
 #endif
 
 /*********************************************************************
+ * TYPEDEFS
+ */
+// Application messages
+typedef struct {
+    uint8_t event;
+    void    *pData;
+} max32664_msg_t;
+
+// Event types
+typedef enum {
+    INIT_HEARTRATE_MODE,
+    INIT_ECG_MODE
+} max32664_event_t;
+
+/*********************************************************************
  * FUNCTIONS
  */
 
@@ -21,6 +36,8 @@ extern "C"
  * Task creation function for the Max32664 Biometric Sensor Hub.
  */
 extern void Max32664_createTask(void);
+extern bool Max32664_enqueueMsg(max32664_event_t event, void *pData);
+
 
 #ifdef __cplusplus
 }
