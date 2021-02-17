@@ -85,7 +85,8 @@ typedef enum
     DATA_SPO2,
     DATA_SPO2_CONFIDENCE,
     DATA_SCD_STATE,
-    DATA_ALERT_ACTIVE
+    DATA_ALERT_ACTIVE,
+    DATA_ALERT_TYPE
 } dataType_t;
 
 /*********************************************************************

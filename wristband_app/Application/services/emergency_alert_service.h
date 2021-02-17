@@ -68,6 +68,14 @@ extern "C"
 /*********************************************************************
  * TYPEDEFS
  */
+typedef enum
+{
+    ALERT_MANUAL,
+    ALERT_FALL_EVENT,
+    ALERT_NO_CONTACT,
+    ALERT_LOW_HEARTRATE,
+    ALERT_HIGH_HEARTRATE
+} emergency_alert_types_t;
 
 /*********************************************************************
  * MACROS

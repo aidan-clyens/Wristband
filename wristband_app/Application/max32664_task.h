@@ -24,8 +24,9 @@ typedef struct {
 
 // Event types
 typedef enum {
-    INIT_HEARTRATE_MODE,
-    INIT_ECG_MODE
+    MAX32664_INIT_HEARTRATE_MODE,
+    MAX32664_INIT_ECG_MODE,
+    MAX32664_TRIGGER_ALERT
 } max32664_event_t;
 
 /*********************************************************************

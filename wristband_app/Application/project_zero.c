@@ -539,6 +539,12 @@ void ProjectZero_valueChangeHandler(dataType_t type, uint8_t data[])
             charData->dataLen = EMERGENCY_ALERT_SERVICE_ALERTACTIVE_LEN;
             memcpy(charData->data, data, charData->dataLen);
             break;
+        case DATA_ALERT_TYPE:
+            charData->svcUUID = EMERGENCY_ALERT_SERVICE_SERV_UUID;
+            charData->paramID = EMERGENCY_ALERT_SERVICE_ALERTTYPE_ID;
+            charData->dataLen = EMERGENCY_ALERT_SERVICE_ALERTTYPE_LEN;
+            memcpy(charData->data, data, charData->dataLen);
+            break;
         default:
             ICall_free(charData);
             return;
@@ -1099,7 +1105,7 @@ static void ProjectZero_processGapMessage(gapEventHdr_t *pMsg)
                       (uintptr_t)addrStr);
 
             // Initialize MAX32664 sensor
-            Max32664_enqueueMsg(INIT_HEARTRATE_MODE, NULL);
+            Max32664_enqueueMsg(MAX32664_INIT_HEARTRATE_MODE, NULL);
         }
 
         if(linkDB_NumActive() < MAX_NUM_BLE_CONNS)
@@ -1824,9 +1830,12 @@ static void ProjectZero_handleButtonPress(pzButtonState_t *pState)
     if (alert_active == 0) {
         if (pState->pinId == Board_PIN_BUTTON1 && pState->state) {
             Log_info0("Triggering Emergency Alert");
-            uint8_t data[1];
-            data[0] = 1;
-            ProjectZero_valueChangeHandler(DATA_ALERT_ACTIVE, data);
+            uint8_t alert_type[1];
+            alert_type[0] = ALERT_MANUAL;
+            uint8_t alert_active[1];
+            alert_active[0] = 1;
+            ProjectZero_valueChangeHandler(DATA_ALERT_TYPE, alert_type);
+            ProjectZero_valueChangeHandler(DATA_ALERT_ACTIVE, alert_active);
         }
     }
 }

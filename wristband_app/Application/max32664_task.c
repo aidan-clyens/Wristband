@@ -23,6 +23,7 @@
 #include <icall.h>
 #include <max32664_task.h>
 #include <project_zero.h>
+#include <services/emergency_alert_service.h>
 #include <util.h>
 
 
@@ -37,6 +38,10 @@
 
 #define MAX32664_NORMAL_REPORT_ALGORITHM_ONLY_SIZE      20
 #define MAX32664_MAX_NUM_SAMPLES            4
+
+// Heart rate constants
+#define MAX32664_LOW_HEARTRATE              70
+#define MAX32664_HIGH_HEARTRATE             150
 
 // I2C
 #define MAX32664_ADDRESS                0xAA
@@ -251,7 +256,7 @@ static void Max32664_init(void)
     operatingMode = RESET_MODE;
 
     // Initialize MAX32664 sensor
-    Max32664_enqueueMsg(INIT_HEARTRATE_MODE, NULL);
+    Max32664_enqueueMsg(MAX32664_INIT_HEARTRATE_MODE, NULL);
 }
 
 /*********************************************************************
@@ -311,6 +316,18 @@ static void Max32664_taskFxn(UArg a0, UArg a1)
                               heartRateData.spO2Confidence,
                               heartRateData.scdState
                     );
+
+                    // Check for low or high heartrate
+                    if (heartRateData.heartRate > MAX32664_HIGH_HEARTRATE) {
+                        uint8_t alert_type[1];
+                        alert_type[0] = ALERT_HIGH_HEARTRATE;
+                        Max32664_enqueueMsg(MAX32664_TRIGGER_ALERT, alert_type);
+                    }
+                    else if (heartRateData.heartRate < MAX32664_LOW_HEARTRATE) {
+                        uint8_t alert_type[1];
+                        alert_type[0] = ALERT_LOW_HEARTRATE;
+                        Max32664_enqueueMsg(MAX32664_TRIGGER_ALERT, alert_type);
+                    }
                 }
 
                 break;
@@ -340,7 +357,7 @@ static void Max32664_taskFxn(UArg a0, UArg a1)
  */
 static void Max32664_processApplicationMessage(max32664_msg_t *pMsg) {
     switch(pMsg->event) {
-        case INIT_HEARTRATE_MODE: {
+        case MAX32664_INIT_HEARTRATE_MODE: {
             Log_info0("Initializing Heart Rate Operating Mode");
             Max32664_initApplicationMode();
 
@@ -362,9 +379,25 @@ static void Max32664_processApplicationMessage(max32664_msg_t *pMsg) {
             operatingMode = HEARTRATE_MODE;
         }
             break;
-        case INIT_ECG_MODE:
+        case MAX32664_INIT_ECG_MODE:
             Util_stopClock(&heartrateClock);
             operatingMode = ECG_MODE;
+            break;
+        case MAX32664_TRIGGER_ALERT: {
+            uint8_t *alert_type = (uint8_t*)pMsg->pData;
+
+            uint8_t alert_active;
+            uint16_t length;
+            Emergency_alert_service_GetParameter(EMERGENCY_ALERT_SERVICE_ALERTACTIVE_ID, &length, &alert_active);
+
+            if (alert_active == 0) {
+                Log_info1("Triggering Emergency Alert: %d", alert_type[0]);
+                uint8_t alert_active[1];
+                alert_active[0] = 1;
+                ProjectZero_valueChangeHandler(DATA_ALERT_TYPE, alert_type);
+                ProjectZero_valueChangeHandler(DATA_ALERT_ACTIVE, alert_active);
+            }
+        }
             break;
         default:
             break;
