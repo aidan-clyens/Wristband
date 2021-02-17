@@ -23,8 +23,9 @@
 #include <icall.h>
 #include <max32664_task.h>
 #include <project_zero.h>
-#include <services/emergency_alert_service.h>
 #include <util.h>
+
+#include <services/emergency_alert_service.h>
 
 
 /*********************************************************************
@@ -386,17 +387,7 @@ static void Max32664_processApplicationMessage(max32664_msg_t *pMsg) {
         case MAX32664_TRIGGER_ALERT: {
             uint8_t *alert_type = (uint8_t*)pMsg->pData;
 
-            uint8_t alert_active;
-            uint16_t length;
-            Emergency_alert_service_GetParameter(EMERGENCY_ALERT_SERVICE_ALERTACTIVE_ID, &length, &alert_active);
-
-            if (alert_active == 0) {
-                Log_info1("Triggering Emergency Alert: %d", alert_type[0]);
-                uint8_t alert_active[1];
-                alert_active[0] = 1;
-                ProjectZero_valueChangeHandler(DATA_ALERT_TYPE, alert_type);
-                ProjectZero_valueChangeHandler(DATA_ALERT_ACTIVE, alert_active);
-            }
+            ProjectZero_triggerEmergencyAlert(*alert_type);
         }
             break;
         default:

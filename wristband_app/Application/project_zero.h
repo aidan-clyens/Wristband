@@ -98,6 +98,7 @@ typedef enum
  */
 extern void ProjectZero_createTask(void);
 extern void ProjectZero_valueChangeHandler(dataType_t type, uint8_t data[]);
+extern void ProjectZero_triggerEmergencyAlert(uint8_t alert_type);
 
 /*********************************************************************
 *********************************************************************/

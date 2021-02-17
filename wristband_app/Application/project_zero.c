@@ -558,6 +558,30 @@ void ProjectZero_valueChangeHandler(dataType_t type, uint8_t data[])
 }
 
 /*********************************************************************
+ * @fn      ProjectZero_triggerEmergencyAlert
+ *
+ * @brief   Trigger an emergency alert by setting the "alert active" indicator
+ *
+ * @param   alert_type - Type of alert to trigger
+ */
+void ProjectZero_triggerEmergencyAlert(uint8_t alert_type)
+{
+    uint8_t alert_active;
+    uint16_t length;
+    Emergency_alert_service_GetParameter(EMERGENCY_ALERT_SERVICE_ALERTACTIVE_ID, &length, &alert_active);
+
+    if (alert_active == 0) {
+        Log_info1("Triggering Emergency Alert: %d", alert_type);
+        uint8_t alert_type_buffer[1];
+        alert_type_buffer[0] = alert_type;
+        uint8_t alert_active[1];
+        alert_active[0] = 1;
+        ProjectZero_valueChangeHandler(DATA_ALERT_TYPE, alert_type_buffer);
+        ProjectZero_valueChangeHandler(DATA_ALERT_ACTIVE, alert_active);
+    }
+}
+
+/*********************************************************************
  * @fn      ProjectZero_init
  *
  * @brief   Called during initialization and contains application
@@ -1823,20 +1847,8 @@ static void ProjectZero_handleButtonPress(pzButtonState_t *pState)
                           ANSI_COLOR(FG_YELLOW)"released"ANSI_COLOR(ATTR_RESET)
                          ));
 
-    uint8_t alert_active;
-    uint16_t length;
-    Emergency_alert_service_GetParameter(EMERGENCY_ALERT_SERVICE_ALERTACTIVE_ID, &length, &alert_active);
-
-    if (alert_active == 0) {
-        if (pState->pinId == Board_PIN_BUTTON1 && pState->state) {
-            Log_info0("Triggering Emergency Alert");
-            uint8_t alert_type[1];
-            alert_type[0] = ALERT_MANUAL;
-            uint8_t alert_active[1];
-            alert_active[0] = 1;
-            ProjectZero_valueChangeHandler(DATA_ALERT_TYPE, alert_type);
-            ProjectZero_valueChangeHandler(DATA_ALERT_ACTIVE, alert_active);
-        }
+    if (pState->pinId == Board_PIN_BUTTON1 && pState->state) {
+        ProjectZero_triggerEmergencyAlert(ALERT_MANUAL);
     }
 }
 
