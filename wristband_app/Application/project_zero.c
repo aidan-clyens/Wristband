@@ -380,6 +380,11 @@ static void ProjectZero_processAdvEvent(pzGapAdvEventData_t *pEventData);
 /* Profile value change handlers */
 static void ProjectZero_updateCharVal(pzCharacteristicData_t *pCharData);
 // TODO
+// Declaration of service callback handlers
+static void ProjectZero_emergencyAlertServiceValueChangeCB(uint16_t connHandle, uint16_t svcUuid,
+                                      uint8_t paramID,
+                                      uint16_t len,
+                                      uint8_t *pValue);
 
 /* Stack or profile callback function */
 static void ProjectZero_advCallback(uint32_t event,
@@ -439,6 +444,13 @@ static gapBondCBs_t ProjectZero_BondMgrCBs =
 {
     ProjectZero_passcodeCb,     // Passcode callback
     ProjectZero_pairStateCb     // Pairing/Bonding state Callback
+};
+
+// Emergency Alert Service callbacks
+static emergency_alert_serviceCBs_t user_emergency_alert_serviceCBs =
+{
+  .pfnChangeCb = ProjectZero_emergencyAlertServiceValueChangeCB, // Characteristic value change callback handler
+  .pfnCfgChangeCb = NULL, // No CCCD change handler implemented
 };
 
 /*********************************************************************
@@ -898,12 +910,8 @@ static void ProjectZero_processApplicationMessage(pzMsg_t *pMsg)
 
       case PZ_SERVICE_WRITE_EVT: /* Message about received value write */
           /* Call different handler per service */
-          switch(pCharData->svcUUID)
-          {
-          // TODO
-          default:
-              break;
-          }
+          Log_info0("Write Char Value");
+          ProjectZero_updateCharVal(pCharData);
           break;
 
       case PZ_SERVICE_CFG_EVT: /* Message about received CCCD write */
@@ -1924,6 +1932,34 @@ static void ProjectZero_passcodeCb(uint8_t *pDeviceAddr,
         }
     }
     ;
+}
+
+/*********************************************************************
+ * @fn      ProjectZero_emergencyAlertServiceValueChangeCB
+ *
+ * @brief   Emergency Alert Service Callback.
+ *
+ * @param   connHandle - connection handle
+ *          svcUuid - service UUID
+ *          paramID - parameter ID
+ *          len - length of data
+ *          pValue -  pointer to data
+ */
+static void ProjectZero_emergencyAlertServiceValueChangeCB(uint16_t connHandle, uint16_t svcUuid,
+                                      uint8_t paramID,
+                                      uint16_t len,
+                                      uint8_t *pValue)
+{
+    pzCharacteristicData_t *pCharData = (pzCharacteristicData_t *)ICall_malloc(sizeof(pzCharacteristicData_t));
+    pCharData->svcUUID = svcUuid;
+    pCharData->dataLen = len;
+    pCharData->paramID = paramID;
+    memcpy(pCharData->data, pValue, pCharData->dataLen);
+
+    if (ProjectZero_enqueueMsg(PZ_SERVICE_WRITE_EVT, pCharData) != SUCCESS)
+    {
+      ICall_free(pCharData);
+    }
 }
 
 /*
