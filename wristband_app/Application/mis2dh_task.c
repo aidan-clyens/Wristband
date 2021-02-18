@@ -41,10 +41,12 @@
 
 // Registers
 #define MIS2DH_CTRL_REG1                0x20
+#define MIS2DH_FIFO_CTRL_REG            0x2E
 
 // Masks
 #define MIS2DH_DATARATE_MASK            0xF0
 #define MIS2DH_LOW_POWER_MODE_MASK      0x08
+#define MIS2DH_FIFO_MODE_MASK           0xC0
 
 /*********************************************************************
  * TYPEDEFS
@@ -62,6 +64,14 @@ typedef enum {
     DATARATE_1620HZ = 0x08,
     DATARATE_5376HZ = 0x09
 } data_rate_t;
+
+// FIFO Mode
+typedef enum {
+    FIFO_MODE_BYPASS = 0x0,
+    FIFO_MODE_FIFO = 0x01,
+    FIFO_MODE_STREAM = 0x10,
+    FIFO_MODE_STREAM_TO_FIFO = 0x11
+} fifo_mode_t;
 
 /*********************************************************************
  * GLOBAL VARIABLES
@@ -98,6 +108,7 @@ static void Mis2dh_clockSwiFxn(UArg a0);
 
 static bool Mis2dh_configureDataRate(data_rate_t dataRate);
 static bool Mis2dh_setLowPowerMode(bool enable);
+static bool Mis2dh_setFifoMode(fifo_mode_t fifoMode);
 
 // I2C
 static bool Mis2dh_writeRegister(uint8_t regAddress, uint8_t data);
@@ -156,7 +167,14 @@ static void Mis2dh_init(void) {
         Task_exit();
     }
 
-    //
+    // Configure FIFO mode
+    if (Mis2dh_setFifoMode(FIFO_MODE_STREAM)) {
+        Log_info0("Set FIFO Mode to Stream");
+    }
+    else {
+        Log_error0("Error setting FIFO Mode. Exiting");
+        Task_exit();
+    }
 
     // Create clocks
     clockHandle = Util_constructClock(&clock,
@@ -292,4 +310,25 @@ static bool Mis2dh_setLowPowerMode(bool enable) {
     if (enable) ctrl_reg1_data |= MIS2DH_LOW_POWER_MODE_MASK;
 
     return Mis2dh_writeRegister(MIS2DH_CTRL_REG1, ctrl_reg1_data);
+}
+
+/*********************************************************************
+ * @fn      Mis2dh_setFifoMode
+ *
+ * @brief   Set MIS2DH FIFO Mode.
+ *
+ * @param   fifoMode - FIFO Mode: Bypass, FIFO, Stream, or Stream and FIFO.
+ */
+static bool Mis2dh_setFifoMode(fifo_mode_t fifoMode) {
+    uint8_t fifo_ctrl_reg_data;
+
+    if (!Mis2dh_readRegister(MIS2DH_FIFO_CTRL_REG, &fifo_ctrl_reg_data)) {
+        return false;
+    }
+
+    // Clear data rate and write new value
+    fifo_ctrl_reg_data &= ~MIS2DH_FIFO_MODE_MASK;
+    fifo_ctrl_reg_data |= (fifoMode << 6);
+
+    return Mis2dh_writeRegister(MIS2DH_FIFO_CTRL_REG, fifo_ctrl_reg_data);
 }
