@@ -56,6 +56,14 @@ typedef enum {
     DATARATE_5376HZ = 0x09
 } data_rate_t;
 
+// FIFO Mode
+typedef enum {
+    FIFO_MODE_BYPASS = 0x0,
+    FIFO_MODE_FIFO = 0x01,
+    FIFO_MODE_STREAM = 0x10,
+    FIFO_MODE_STREAM_TO_FIFO = 0x11
+} fifo_mode_t;
+
 /*****************************************************
  *  Global Variables
  * ***************************************************/
@@ -84,6 +92,7 @@ class mis2dh {
         // Attribute getters
         power_mode_t get_power_mode() const;
         data_rate_t get_data_rate() const;
+        fifo_mode_t get_fifo_mode() const;
         bool is_fifo_enabled() const;
 
         // Static functions
@@ -94,6 +103,7 @@ class mis2dh {
         QueueArray<uint8_t> m_fifo;
 
         data_rate_t m_data_rate;
+        fifo_mode_t m_fifo_mode;
 
         bool m_low_power_mode;
         bool m_high_resolution_mode;

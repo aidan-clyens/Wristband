@@ -5,15 +5,15 @@
  *
  * @brief   MIS2DH constructor.
  */
-mis2dh::mis2dh():
-m_fifo(FIFO_DEPTH),
-m_ctrl_reg1(0x0),
-m_ctrl_reg5(0x0),
-m_fifo_ctrl_reg(0x0),
-m_data_rate(DATARATE_POWER_DOWN),
-m_low_power_mode(false),
-m_high_resolution_mode(false),
-m_fifo_enabled(false)
+mis2dh::mis2dh() : m_fifo(FIFO_DEPTH),
+                   m_ctrl_reg1(0x0),
+                   m_ctrl_reg5(0x0),
+                   m_fifo_ctrl_reg(0x0),
+                   m_fifo_mode(FIFO_MODE_BYPASS),
+                   m_data_rate(DATARATE_POWER_DOWN),
+                   m_low_power_mode(false),
+                   m_high_resolution_mode(false),
+                   m_fifo_enabled(false)
 {
 
 }
@@ -102,6 +102,8 @@ void mis2dh::set_ctrl_reg5(uint8_t data) {
  */
 void mis2dh::set_fifo_ctrl_reg(uint8_t data) {
     m_fifo_ctrl_reg = data;
+
+    m_fifo_mode = (fifo_mode_t)(m_fifo_ctrl_reg >> 6);
 }
 
 /*********************************************************************
@@ -132,6 +134,17 @@ power_mode_t mis2dh::get_power_mode() const {
  */
 data_rate_t mis2dh::get_data_rate() const {
     return m_data_rate;
+}
+
+/*********************************************************************
+ * @fn      get_fifo_mode
+ *
+ * @brief   Get current FIFO mode.
+ * 
+ * @returns Current FIFO mode.
+ */
+fifo_mode_t mis2dh::get_fifo_mode() const {
+    return m_fifo_mode;
 }
 
 /*********************************************************************
