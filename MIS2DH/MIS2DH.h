@@ -14,8 +14,9 @@
 #define FIFO_DEPTH      32
 
 // Registers
-#define MIS2DH_CTRL_REG1    0x20
-#define MIS2DH_CTRL_REG5    0x24
+#define MIS2DH_CTRL_REG1            0x20
+#define MIS2DH_CTRL_REG5            0x24
+#define MIS2DH_FIFO_CTRL_REG        0x2E
 
 
 /*****************************************************
@@ -25,6 +26,7 @@
 typedef enum {
     EVENT_WRITE_CTRL_REG1,
     EVENT_WRITE_CTRL_REG5,
+    EVENT_WRITE_FIFO_CTRL_REG
 } event_t;
 
 // Message
@@ -77,6 +79,7 @@ class mis2dh {
         // Registers
         void set_ctrl_reg1(uint8_t data);
         void set_ctrl_reg5(uint8_t data);
+        void set_fifo_ctrl_reg(uint8_t data);
 
         // Attribute getters
         power_mode_t get_power_mode() const;
@@ -99,4 +102,5 @@ class mis2dh {
 
         uint8_t m_ctrl_reg1;
         uint8_t m_ctrl_reg5;
+        uint8_t m_fifo_ctrl_reg;
 };
