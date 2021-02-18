@@ -230,11 +230,8 @@ static void Max32664_init(void)
     GPIO_setConfig(Board_GPIO_MAX32664_MFIO, GPIO_CFG_OUT_STD | GPIO_CFG_OUT_LOW);
     GPIO_setConfig(Board_GPIO_MAX32664_RESET, GPIO_CFG_OUT_STD | GPIO_CFG_OUT_HIGH);
 
-    // Initialize I2C
-    if (!Max32664_i2cInit()) {
-        Log_error0("Startup failed. Exiting");
-        Task_exit();
-    }
+    // Set I2C slave address
+    transaction.slaveAddress = MAX32664_ADDRESS;
 
     // Create semaphores
     Semaphore_Params semParamsHeartRate;
@@ -661,7 +658,7 @@ static status_t Max32664_readFifoData(uint8_t *data, int num_bytes)
     transaction.readBuf    = data;
     transaction.readCount  = num_bytes + 1;
 
-    if (I2C_transfer(i2cHandle, &transaction)) {
+    if (Util_i2cTransfer(&transaction)) {
         Log_info0("I2C transfer successful");
         for (int i = 0; i < num_bytes; i++) {
             Log_info1("%d", data[i]);
@@ -703,7 +700,7 @@ static status_t Max32664_writeByte(uint8_t family, uint8_t index, uint8_t data, 
     transaction.readBuf    = rxBuffer;
     transaction.readCount  = 1;
 
-    if (I2C_transfer(i2cHandle, &transaction)) {
+    if (Util_i2cTransfer(&transaction)) {
         Log_info0("I2C transfer successful");
         ret = (status_t)rxBuffer[0];
     }
@@ -739,7 +736,7 @@ static status_t Max32664_readByte(uint8_t family, uint8_t index, uint8_t *data)
     transaction.readBuf    = rxBuffer;
     transaction.readCount  = 2;
 
-    if (I2C_transfer(i2cHandle, &transaction)) {
+    if (Util_i2cTransfer(&transaction)) {
         Log_info0("I2C transfer successful");
         (*data) = rxBuffer[0];
         ret = (status_t)rxBuffer[1];
@@ -762,32 +759,6 @@ static status_t Max32664_readByte(uint8_t family, uint8_t index, uint8_t *data)
  */
 static void Max32664_heartRateSwiFxn(UArg a0) {
     Semaphore_post(heartRateSemaphore);
-}
-
-
-/*********************************************************************
- * @fn      Max32664_i2cInit
- *
- * @brief   Initialization the master I2C connection with device.
- */
-static bool Max32664_i2cInit(void)
-{
-    I2C_Params i2cParams;
-
-    I2C_init();
-
-    // Configure I2C
-    I2C_Params_init(&i2cParams);
-    i2cParams.transferMode = I2C_MODE_BLOCKING;
-    i2cParams.bitRate = I2C_400kHz;
-    i2cHandle = I2C_open(Board_I2C_TMP, &i2cParams);
-    if (i2cHandle == NULL) {
-        Log_error0("I2C initialization failed!");
-        return false;
-    }
-    transaction.slaveAddress = MAX32664_ADDRESS;
-    Log_info0("I2C initialized");
-    return true;
 }
 
 /*********************************************************************
