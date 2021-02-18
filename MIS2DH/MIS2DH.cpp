@@ -7,7 +7,9 @@
  */
 mis2dh::mis2dh():
 m_fifo(FIFO_DEPTH),
-m_power_mode(MODE_LOW_POWER)
+m_ctrl_reg1(0x0),
+m_power_mode(MODE_LOW_POWER),
+m_data_rate(DATARATE_POWER_DOWN)
 {
 
 }
@@ -35,14 +37,56 @@ void mis2dh::init() {
 }
 
 /*********************************************************************
+ * @fn      process_messages
+ *
+ * @brief   Process messages from the sensor message queue. 
+ */
+void mis2dh::process_messages() {
+    while (!message_queue.empty()) {
+        message_t msg = message_queue.front();
+        message_queue.pop();
+
+        switch (msg.event) {
+            case EVENT_WRITE_CTRL_REG1:
+                this->set_ctrl_reg1(msg.data);
+                break;
+            default:
+                break;
+        }
+    }
+}
+
+/*********************************************************************
+ * @fn      set_ctrl_reg1
+ *
+ * @brief   Write to CTRL_REG1.
+ * 
+ * @param   data - Data to write.
+ */
+void mis2dh::set_ctrl_reg1(uint8_t data) {
+    m_ctrl_reg1 = data;
+    m_data_rate = (data_rate_t)(data >> 4);
+}
+
+/*********************************************************************
+ * @fn      get_data_rate
+ *
+ * @brief   Get selected data rate.
+ * 
+ * @returns Data rate selection.
+ */
+data_rate_t mis2dh::get_data_rate() const {
+    return m_data_rate;
+}
+
+/*********************************************************************
  * @fn      receiveEvent
  *
  * @brief   Receive data over I2C.
  * 
- * @param   num - Number of bytes received
+ * @param   num - Number of bytes received.
  */
-void mis2dh::receiveEvent(int num)
-{
+void mis2dh::receiveEvent(int num) {
     Serial.println("\n/*** RECEIVE EVENT ***/");
 
     if (Wire.available()) {
@@ -67,6 +111,16 @@ void mis2dh::requestEvent() {
     Serial.println("\n/*** REQUEST EVENT ***/");
 
     switch (register_address) {
+        case MIS2DH_CTRL_REG1: {
+            Serial.print("Write CTRL_REG1: ");
+            Serial.println(data);
+
+            message_t msg;
+            msg.event = EVENT_WRITE_CTRL_REG1;
+            msg.data = data;
+            message_queue.push(msg);
+            break;
+        }
         default:
             break;
     }

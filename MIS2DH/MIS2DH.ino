@@ -29,5 +29,5 @@ void setup() {
  * @brief   Main program loop.
  */
 void loop() {
-
+  sensor.process_messages();
 }
