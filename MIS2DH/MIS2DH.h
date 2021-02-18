@@ -17,6 +17,7 @@
 #define MIS2DH_CTRL_REG1            0x20
 #define MIS2DH_CTRL_REG5            0x24
 #define MIS2DH_FIFO_CTRL_REG        0x2E
+#define MIS2DH_FIFO_SRC_REG         0x2F
 
 
 /*****************************************************
@@ -24,14 +25,14 @@
  * ***************************************************/
 // Event
 typedef enum {
-    EVENT_WRITE_CTRL_REG1,
-    EVENT_WRITE_CTRL_REG5,
-    EVENT_WRITE_FIFO_CTRL_REG
+    EVENT_READ,
+    EVENT_WRITE
 } event_t;
 
 // Message
 typedef struct {
     event_t event;
+    uint8_t register_address;
     uint8_t data;
 } message_t;
 
@@ -114,6 +115,7 @@ class mis2dh {
         uint8_t m_ctrl_reg1;
         uint8_t m_ctrl_reg5;
         uint8_t m_fifo_ctrl_reg;
+        uint8_t m_fifo_src_reg;
 
         unsigned long m_sensor_period_ms;
         unsigned long m_current_ms;

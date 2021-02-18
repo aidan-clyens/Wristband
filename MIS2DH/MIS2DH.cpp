@@ -54,14 +54,31 @@ void mis2dh::process_messages() {
         message_queue.pop();
 
         switch (msg.event) {
-            case EVENT_WRITE_CTRL_REG1:
-                this->set_ctrl_reg1(msg.data);
+            case EVENT_READ:
+                switch (msg.register_address) {
+                    case MIS2DH_CTRL_REG1:
+                        this->set_ctrl_reg1(msg.data);
+                        break;
+                    case MIS2DH_CTRL_REG5:
+                        this->set_ctrl_reg5(msg.data);
+                        break;
+                    case MIS2DH_FIFO_CTRL_REG:
+                        this->set_fifo_ctrl_reg(msg.data);
+                        break;
+                }
                 break;
-            case EVENT_WRITE_CTRL_REG5:
-                this->set_ctrl_reg5(msg.data);
-                break;
-            case EVENT_WRITE_FIFO_CTRL_REG:
-                this->set_fifo_ctrl_reg(msg.data);
+            case EVENT_WRITE:
+                switch (msg.register_address) {
+                    case MIS2DH_CTRL_REG1:
+                        Wire.write(m_ctrl_reg1);
+                        break;
+                    case MIS2DH_CTRL_REG5:
+                        Wire.write(m_ctrl_reg5);
+                        break;
+                    case MIS2DH_FIFO_CTRL_REG:
+                        Wire.write(m_fifo_ctrl_reg);
+                        break;
+                }
                 break;
             default:
                 break;
@@ -189,6 +206,7 @@ bool mis2dh::is_fifo_enabled() const {
 void mis2dh::receiveEvent(int num) {
     Serial.println("\n/*** RECEIVE EVENT ***/");
 
+    // Read incoming data
     if (Wire.available()) {
         register_address = Wire.read();
         Serial.print("Register: ");
@@ -200,6 +218,21 @@ void mis2dh::receiveEvent(int num) {
         Serial.print("Data: ");
         Serial.println(data);
     }
+
+    // Read
+    if (num == 1) {
+        Serial.println("READ");
+    }
+    // Write
+    else if (num == 2) {
+        Serial.println("WRITE");
+        message_t msg;
+        msg.event = EVENT_WRITE;
+        msg.register_address = register_address;
+        msg.data = data;
+
+        message_queue.push(msg);
+    }
 }
 
 /*********************************************************************
@@ -210,40 +243,10 @@ void mis2dh::receiveEvent(int num) {
 void mis2dh::requestEvent() {
     Serial.println("\n/*** REQUEST EVENT ***/");
 
-    switch (register_address) {
-        case MIS2DH_CTRL_REG1: {
-            Serial.print("Write CTRL_REG1: ");
-            Serial.println(data);
-
-            message_t msg;
-            msg.event = EVENT_WRITE_CTRL_REG1;
-            msg.data = data;
-            message_queue.push(msg);
-            break;
-        }
-        case MIS2DH_CTRL_REG5: {
-            Serial.print("Write CTRL_REG5: ");
-            Serial.println(data);
-
-            message_t msg;
-            msg.event = EVENT_WRITE_CTRL_REG5;
-            msg.data = data;
-            message_queue.push(msg);
-            break;
-        }
-        case MIS2DH_FIFO_CTRL_REG: {
-            Serial.print("Write FIFO_CTRL_REG: ");
-            Serial.println(data);
-
-            message_t msg;
-            msg.event = EVENT_WRITE_FIFO_CTRL_REG;
-            msg.data = data;
-            message_queue.push(msg);
-            break;
-        }
-        default:
-            break;
-    }
+    message_t msg;
+    msg.event = EVENT_READ;
+    msg.register_address = register_address;
+    message_queue.push(msg);
 }
 
 /*********************************************************************
