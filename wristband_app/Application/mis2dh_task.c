@@ -42,6 +42,10 @@
 // Registers
 #define MIS2DH_CTRL_REG1                0x20
 
+// Masks
+#define MIS2DH_DATARATE_MASK            0xF0
+#define MIS2DH_LOW_POWER_MODE_MASK      0x08
+
 /*********************************************************************
  * TYPEDEFS
  */
@@ -93,6 +97,7 @@ static void Mis2dh_taskFxn(UArg a0, UArg a1);
 static void Mis2dh_clockSwiFxn(UArg a0);
 
 static bool Mis2dh_configureDataRate(data_rate_t dataRate);
+static bool Mis2dh_setLowPowerMode(bool enable);
 
 // I2C
 static bool Mis2dh_writeRegister(uint8_t regAddress, uint8_t data);
@@ -141,6 +146,17 @@ static void Mis2dh_init(void) {
         Log_error0("Error setting data rate. Exiting");
         Task_exit();
     }
+
+    // Enable low power mode
+    if (Mis2dh_setLowPowerMode(true)) {
+        Log_info0("Enable Low Power Mode");
+    }
+    else {
+        Log_error0("Error enabling Low Power Mode. Exiting");
+        Task_exit();
+    }
+
+    //
 
     // Create clocks
     clockHandle = Util_constructClock(&clock,
@@ -251,8 +267,29 @@ static bool Mis2dh_configureDataRate(data_rate_t dataRate) {
     }
 
     // Clear data rate and write new value
-    ctrl_reg1_data &= 0x0F;
+    ctrl_reg1_data &= ~MIS2DH_DATARATE_MASK;
     ctrl_reg1_data |= (dataRate << 4);
+
+    return Mis2dh_writeRegister(MIS2DH_CTRL_REG1, ctrl_reg1_data);
+}
+
+/*********************************************************************
+ * @fn      Mis2dh_setLowPowerMode
+ *
+ * @brief   Set MIS2DH Low Power Mode.
+ *
+ * @param   enable - Enable or disable Low Power Mode.
+ */
+static bool Mis2dh_setLowPowerMode(bool enable) {
+    uint8_t ctrl_reg1_data;
+
+    if (!Mis2dh_readRegister(MIS2DH_CTRL_REG1, &ctrl_reg1_data)) {
+        return false;
+    }
+
+    // Clear data rate and write new value
+    ctrl_reg1_data &= ~MIS2DH_LOW_POWER_MODE_MASK;
+    if (enable) ctrl_reg1_data |= MIS2DH_LOW_POWER_MODE_MASK;
 
     return Mis2dh_writeRegister(MIS2DH_CTRL_REG1, ctrl_reg1_data);
 }
