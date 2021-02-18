@@ -41,11 +41,13 @@
 
 // Registers
 #define MIS2DH_CTRL_REG1                0x20
+#define MIS2DH_CTRL_REG5                0x24
 #define MIS2DH_FIFO_CTRL_REG            0x2E
 
 // Masks
 #define MIS2DH_DATARATE_MASK            0xF0
 #define MIS2DH_LOW_POWER_MODE_MASK      0x08
+#define MIS2DH_FIFO_ENABLE_MASK         0x40
 #define MIS2DH_FIFO_MODE_MASK           0xC0
 
 /*********************************************************************
@@ -109,6 +111,7 @@ static void Mis2dh_clockSwiFxn(UArg a0);
 static bool Mis2dh_configureDataRate(data_rate_t dataRate);
 static bool Mis2dh_setLowPowerMode(bool enable);
 static bool Mis2dh_setFifoMode(fifo_mode_t fifoMode);
+static bool Mis2dh_enableFifo(bool enable);
 
 // I2C
 static bool Mis2dh_writeRegister(uint8_t regAddress, uint8_t data);
@@ -173,6 +176,15 @@ static void Mis2dh_init(void) {
     }
     else {
         Log_error0("Error setting FIFO Mode. Exiting");
+        Task_exit();
+    }
+
+    // Enable FIFO
+    if (Mis2dh_enableFifo(true)) {
+        Log_info0("Enabled FIFO");
+    }
+    else {
+        Log_error0("Error enabling FIFO. Exiting");
         Task_exit();
     }
 
@@ -284,7 +296,7 @@ static bool Mis2dh_configureDataRate(data_rate_t dataRate) {
         return false;
     }
 
-    // Clear data rate and write new value
+    // Clear and write new value
     ctrl_reg1_data &= ~MIS2DH_DATARATE_MASK;
     ctrl_reg1_data |= (dataRate << 4);
 
@@ -305,7 +317,7 @@ static bool Mis2dh_setLowPowerMode(bool enable) {
         return false;
     }
 
-    // Clear data rate and write new value
+    // Clear and write new value
     ctrl_reg1_data &= ~MIS2DH_LOW_POWER_MODE_MASK;
     if (enable) ctrl_reg1_data |= MIS2DH_LOW_POWER_MODE_MASK;
 
@@ -326,9 +338,30 @@ static bool Mis2dh_setFifoMode(fifo_mode_t fifoMode) {
         return false;
     }
 
-    // Clear data rate and write new value
+    // Clear and write new value
     fifo_ctrl_reg_data &= ~MIS2DH_FIFO_MODE_MASK;
     fifo_ctrl_reg_data |= (fifoMode << 6);
 
     return Mis2dh_writeRegister(MIS2DH_FIFO_CTRL_REG, fifo_ctrl_reg_data);
+}
+
+/*********************************************************************
+ * @fn      Mis2dh_enableFifo
+ *
+ * @brief   Enable MIS2DH FIFO.
+ *
+ * @param   enable - Enable or disable FIFO.
+ */
+static bool Mis2dh_enableFifo(bool enable) {
+    uint8_t ctrl_reg5_data;
+
+    if (!Mis2dh_readRegister(MIS2DH_CTRL_REG5, &ctrl_reg5_data)) {
+        return false;
+    }
+
+    // Clear and write new value
+    ctrl_reg5_data &= ~MIS2DH_FIFO_ENABLE_MASK;
+    if (enable) ctrl_reg5_data |= MIS2DH_FIFO_ENABLE_MASK;
+
+    return Mis2dh_writeRegister(MIS2DH_CTRL_REG5, ctrl_reg5_data);
 }
