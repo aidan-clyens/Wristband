@@ -10,7 +10,8 @@ m_fifo(FIFO_DEPTH),
 m_ctrl_reg1(0x0),
 m_data_rate(DATARATE_POWER_DOWN),
 m_low_power_mode(false),
-m_high_resolution_mode(false)
+m_high_resolution_mode(false),
+m_fifo_enabled(false)
 {
 
 }
@@ -51,6 +52,9 @@ void mis2dh::process_messages() {
             case EVENT_WRITE_CTRL_REG1:
                 this->set_ctrl_reg1(msg.data);
                 break;
+            case EVENT_WRITE_CTRL_REG5:
+                this->set_ctrl_reg5(msg.data);
+                break;
             default:
                 break;
         }
@@ -68,7 +72,20 @@ void mis2dh::set_ctrl_reg1(uint8_t data) {
     m_ctrl_reg1 = data;
     m_data_rate = (data_rate_t)(m_ctrl_reg1 >> 4);
 
-    m_low_power_mode = (m_ctrl_reg1 & 0x4) > 0;
+    m_low_power_mode = (m_ctrl_reg1 & 0x8) > 0;
+}
+
+/*********************************************************************
+ * @fn      set_ctrl_reg5
+ *
+ * @brief   Write to CTRL_REG5.
+ * 
+ * @param   data - Data to write.
+ */
+void mis2dh::set_ctrl_reg5(uint8_t data) {
+    m_ctrl_reg5 = data;
+
+    m_fifo_enabled = (m_ctrl_reg5 & 0x40) > 0;
 }
 
 /*********************************************************************
@@ -99,6 +116,17 @@ power_mode_t mis2dh::get_power_mode() const {
  */
 data_rate_t mis2dh::get_data_rate() const {
     return m_data_rate;
+}
+
+/*********************************************************************
+ * @fn      is_fifo_enabled
+ *
+ * @brief   Check whether FIFO is enabled or not.
+ * 
+ * @returns Boolean indicating whether FIFO is enabled or not.
+ */
+bool mis2dh::is_fifo_enabled() const {
+    return m_fifo_enabled;
 }
 
 /*********************************************************************
@@ -139,6 +167,16 @@ void mis2dh::requestEvent() {
 
             message_t msg;
             msg.event = EVENT_WRITE_CTRL_REG1;
+            msg.data = data;
+            message_queue.push(msg);
+            break;
+        }
+        case MIS2DH_CTRL_REG5: {
+            Serial.print("Write CTRL_REG5: ");
+            Serial.println(data);
+
+            message_t msg;
+            msg.event = EVENT_WRITE_CTRL_REG5;
             msg.data = data;
             message_queue.push(msg);
             break;

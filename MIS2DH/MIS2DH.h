@@ -15,13 +15,16 @@
 
 // Registers
 #define MIS2DH_CTRL_REG1    0x20
+#define MIS2DH_CTRL_REG5    0x24
+
 
 /*****************************************************
  *  Typedefs
  * ***************************************************/
 // Event
 typedef enum {
-    EVENT_WRITE_CTRL_REG1
+    EVENT_WRITE_CTRL_REG1,
+    EVENT_WRITE_CTRL_REG5,
 } event_t;
 
 // Message
@@ -73,10 +76,12 @@ class mis2dh {
 
         // Registers
         void set_ctrl_reg1(uint8_t data);
+        void set_ctrl_reg5(uint8_t data);
 
         // Attribute getters
         power_mode_t get_power_mode() const;
         data_rate_t get_data_rate() const;
+        bool is_fifo_enabled() const;
 
         // Static functions
         static void receiveEvent(int num);
@@ -90,5 +95,8 @@ class mis2dh {
         bool m_low_power_mode;
         bool m_high_resolution_mode;
 
+        bool m_fifo_enabled;
+
         uint8_t m_ctrl_reg1;
+        uint8_t m_ctrl_reg5;
 };
