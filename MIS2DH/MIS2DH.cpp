@@ -1,14 +1,18 @@
 #include "MIS2DH.h"
 
+
+uint8_t mis2dh::m_ctrl_reg1 = 0x0;
+uint8_t mis2dh::m_ctrl_reg5 = 0x0;
+uint8_t mis2dh::m_fifo_ctrl_reg = 0x0;
+uint8_t mis2dh::m_fifo_src_reg = 0x0;
+
+
 /*********************************************************************
  * @fn      mis2sh
  *
  * @brief   MIS2DH constructor.
  */
 mis2dh::mis2dh() : m_fifo(FIFO_DEPTH),
-                   m_ctrl_reg1(0x0),
-                   m_ctrl_reg5(0x0),
-                   m_fifo_ctrl_reg(0x0),
                    m_fifo_mode(FIFO_MODE_BYPASS),
                    m_data_rate(DATARATE_POWER_DOWN),
                    m_low_power_mode(false),
@@ -19,6 +23,10 @@ mis2dh::mis2dh() : m_fifo(FIFO_DEPTH),
     m_prev_ms = m_current_ms;
 
     m_sensor_period_ms = this->get_period_from_data_rate();
+
+    m_ctrl_reg1 |= (m_data_rate << 4);
+    if (m_low_power_mode) m_ctrl_reg1 |= 0x08;
+    if (m_fifo_enabled) m_ctrl_reg5 |= 0x40;
 }
 
 /*********************************************************************
@@ -53,34 +61,15 @@ void mis2dh::process_messages() {
         message_t msg = message_queue.front();
         message_queue.pop();
 
-        switch (msg.event) {
-            case EVENT_READ:
-                switch (msg.register_address) {
-                    case MIS2DH_CTRL_REG1:
-                        this->set_ctrl_reg1(msg.data);
-                        break;
-                    case MIS2DH_CTRL_REG5:
-                        this->set_ctrl_reg5(msg.data);
-                        break;
-                    case MIS2DH_FIFO_CTRL_REG:
-                        this->set_fifo_ctrl_reg(msg.data);
-                        break;
-                }
+        switch (msg.register_address) {
+            case MIS2DH_CTRL_REG1:
+                this->set_ctrl_reg1(msg.data);
                 break;
-            case EVENT_WRITE:
-                switch (msg.register_address) {
-                    case MIS2DH_CTRL_REG1:
-                        Wire.write(m_ctrl_reg1);
-                        break;
-                    case MIS2DH_CTRL_REG5:
-                        Wire.write(m_ctrl_reg5);
-                        break;
-                    case MIS2DH_FIFO_CTRL_REG:
-                        Wire.write(m_fifo_ctrl_reg);
-                        break;
-                }
+            case MIS2DH_CTRL_REG5:
+                this->set_ctrl_reg5(msg.data);
                 break;
-            default:
+            case MIS2DH_FIFO_CTRL_REG:
+                this->set_fifo_ctrl_reg(msg.data);
                 break;
         }
     }
@@ -98,7 +87,7 @@ void mis2dh::read_accelerometer() {
     if (m_data_rate != DATARATE_POWER_DOWN) {
         if (m_current_ms - m_prev_ms > m_sensor_period_ms) {
             // TODO: Add data to FIFO
-            Serial.println("Read accelerometer data");
+            // Serial.println("Read accelerometer data");
             m_prev_ms = m_current_ms;
         }
     }
@@ -227,7 +216,6 @@ void mis2dh::receiveEvent(int num) {
     else if (num == 2) {
         Serial.println("WRITE");
         message_t msg;
-        msg.event = EVENT_WRITE;
         msg.register_address = register_address;
         msg.data = data;
 
@@ -243,10 +231,20 @@ void mis2dh::receiveEvent(int num) {
 void mis2dh::requestEvent() {
     Serial.println("\n/*** REQUEST EVENT ***/");
 
-    message_t msg;
-    msg.event = EVENT_READ;
-    msg.register_address = register_address;
-    message_queue.push(msg);
+    switch (register_address) {
+        case MIS2DH_CTRL_REG1:
+            Wire.write(m_ctrl_reg1);
+            Serial.println(m_ctrl_reg1);
+            break;
+        case MIS2DH_CTRL_REG5:
+            Wire.write(m_ctrl_reg5);
+            Serial.println(m_ctrl_reg5);
+            break;
+        case MIS2DH_FIFO_CTRL_REG:
+            Wire.write(m_fifo_ctrl_reg);
+            Serial.println(m_fifo_ctrl_reg);
+            break;
+    }
 }
 
 /*********************************************************************

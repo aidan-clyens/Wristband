@@ -23,15 +23,8 @@
 /*****************************************************
  *  Typedefs
  * ***************************************************/
-// Event
-typedef enum {
-    EVENT_READ,
-    EVENT_WRITE
-} event_t;
-
 // Message
 typedef struct {
-    event_t event;
     uint8_t register_address;
     uint8_t data;
 } message_t;
@@ -112,10 +105,10 @@ class mis2dh {
 
         bool m_fifo_enabled;
 
-        uint8_t m_ctrl_reg1;
-        uint8_t m_ctrl_reg5;
-        uint8_t m_fifo_ctrl_reg;
-        uint8_t m_fifo_src_reg;
+        static uint8_t m_ctrl_reg1;
+        static uint8_t m_ctrl_reg5;
+        static uint8_t m_fifo_ctrl_reg;
+        static uint8_t m_fifo_src_reg;
 
         unsigned long m_sensor_period_ms;
         unsigned long m_current_ms;
