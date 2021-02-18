@@ -83,6 +83,7 @@ class mis2dh {
         void init();
 
         void process_messages();
+        void read_accelerometer();
 
         // Registers
         void set_ctrl_reg1(uint8_t data);
@@ -113,4 +114,10 @@ class mis2dh {
         uint8_t m_ctrl_reg1;
         uint8_t m_ctrl_reg5;
         uint8_t m_fifo_ctrl_reg;
+
+        unsigned long m_sensor_period_ms;
+        unsigned long m_current_ms;
+        unsigned long m_prev_ms;
+
+        unsigned long get_period_from_data_rate() const;
 };

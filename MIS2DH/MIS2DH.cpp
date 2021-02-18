@@ -15,7 +15,10 @@ mis2dh::mis2dh() : m_fifo(FIFO_DEPTH),
                    m_high_resolution_mode(false),
                    m_fifo_enabled(false)
 {
+    m_current_ms = millis();
+    m_prev_ms = m_current_ms;
 
+    m_sensor_period_ms = this->get_period_from_data_rate();
 }
 
 /*********************************************************************
@@ -62,6 +65,24 @@ void mis2dh::process_messages() {
                 break;
             default:
                 break;
+        }
+    }
+}
+
+/*********************************************************************
+ * @fn      read_accelerometer
+ *
+ * @brief   Read accelerometer data. 
+ */
+void mis2dh::read_accelerometer() {
+    m_current_ms = millis();
+
+    // Read accelerometer data
+    if (m_data_rate != DATARATE_POWER_DOWN) {
+        if (m_current_ms - m_prev_ms > m_sensor_period_ms) {
+            // TODO: Add data to FIFO
+            Serial.println("Read accelerometer data");
+            m_prev_ms = m_current_ms;
         }
     }
 }
@@ -223,4 +244,49 @@ void mis2dh::requestEvent() {
         default:
             break;
     }
+}
+
+/*********************************************************************
+ * @fn      get_period_from_data_rate
+ *
+ * @brief   Get the sensor period from the data rate.
+ * 
+ * @returns Period in ms.
+ */
+unsigned long mis2dh::get_period_from_data_rate() const {
+    int frequency;
+
+    switch (m_data_rate) {
+        case DATARATE_POWER_DOWN:
+            return 100000000;
+        case DATARATE_1HZ:
+            frequency = 1;
+            break;
+        case DATARATE_10HZ:
+            frequency = 10;
+            break;
+        case DATARATE_25HZ:
+            frequency = 25;
+            break;
+        case DATARATE_50HZ:
+            frequency = 50;
+            break;
+        case DATARATE_100HZ:
+            frequency = 100;
+            break;
+        case DATARATE_200HZ:
+            frequency = 200;
+            break;
+        case DATARATE_400HZ:
+            frequency = 400;
+            break;
+        case DATARATE_1620HZ:
+            frequency = 1620;
+            break;
+        case DATARATE_5376HZ:
+            frequency = 5376;
+            break;
+    }
+
+    return (1 / frequency) * 1000;
 }

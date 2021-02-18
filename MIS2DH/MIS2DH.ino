@@ -30,4 +30,5 @@ void setup() {
  */
 void loop() {
   sensor.process_messages();
+  sensor.read_accelerometer();
 }
