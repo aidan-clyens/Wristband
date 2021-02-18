@@ -8,8 +8,9 @@
 mis2dh::mis2dh():
 m_fifo(FIFO_DEPTH),
 m_ctrl_reg1(0x0),
-m_power_mode(MODE_LOW_POWER),
-m_data_rate(DATARATE_POWER_DOWN)
+m_data_rate(DATARATE_POWER_DOWN),
+m_low_power_mode(false),
+m_high_resolution_mode(false)
 {
 
 }
@@ -65,7 +66,28 @@ void mis2dh::process_messages() {
  */
 void mis2dh::set_ctrl_reg1(uint8_t data) {
     m_ctrl_reg1 = data;
-    m_data_rate = (data_rate_t)(data >> 4);
+    m_data_rate = (data_rate_t)(m_ctrl_reg1 >> 4);
+
+    m_low_power_mode = (m_ctrl_reg1 & 0x4) > 0;
+}
+
+/*********************************************************************
+ * @fn      get_power_mode
+ *
+ * @brief   Get current power mode.
+ * 
+ * @returns Current power mode.
+ */
+power_mode_t mis2dh::get_power_mode() const {
+    if (m_low_power_mode) {
+        return MODE_LOW_POWER;
+    }
+
+    if (m_high_resolution_mode) {
+        return MODE_HIGH_RESOLUTION;
+    }
+
+    return MODE_NORMAL;
 }
 
 /*********************************************************************

@@ -75,6 +75,7 @@ class mis2dh {
         void set_ctrl_reg1(uint8_t data);
 
         // Attribute getters
+        power_mode_t get_power_mode() const;
         data_rate_t get_data_rate() const;
 
         // Static functions
@@ -84,8 +85,10 @@ class mis2dh {
     private:
         QueueArray<uint8_t> m_fifo;
 
-        power_mode_t m_power_mode;
         data_rate_t m_data_rate;
+
+        bool m_low_power_mode;
+        bool m_high_resolution_mode;
 
         uint8_t m_ctrl_reg1;
 };
