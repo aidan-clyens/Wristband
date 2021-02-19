@@ -34,7 +34,7 @@
 #define MIS2DH_THREAD_STACK_SIZE        1024
 #define MIS2DH_TASK_PRIORITY            1
 
-#define MIS2DH_CLOCK_PERIOD_MS          1000
+#define MIS2DH_CLOCK_PERIOD_MS          5*1000
 
 // I2C
 #define MIS2DH_ADDRESS                  0x18
@@ -246,7 +246,10 @@ static void Mis2dh_taskFxn(UArg a0, UArg a1) {
         Mis2dh_isFifoEmpty(&empty);
         Log_info3("Num Samples: %d, Full: %d, Empty: %d", num_samples, full, empty);
 
-        if (!empty) {
+        if (num_samples < 5) continue;
+
+        // Read 5 samples
+        for (int i = 0; i < 5; i++) {
             if (Mis2dh_readSensorData(&data)) {
                 Log_info0("Read data from FIFO");
                 Log_info2("XL: %d, XH: %d", data.x_L, data.x_H);
