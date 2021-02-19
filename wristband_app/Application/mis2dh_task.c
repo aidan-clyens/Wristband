@@ -42,6 +42,12 @@
 // Registers
 #define MIS2DH_CTRL_REG1                0x20
 #define MIS2DH_CTRL_REG5                0x24
+#define MIS2DH_OUT_X_L                  0x28
+#define MIS2DH_OUT_X_H                  0x29
+#define MIS2DH_OUT_Y_L                  0x2A
+#define MIS2DH_OUT_Y_H                  0x2B
+#define MIS2DH_OUT_Z_L                  0x2C
+#define MIS2DH_OUT_Z_H                  0x2D
 #define MIS2DH_FIFO_CTRL_REG            0x2E
 
 // Masks
@@ -53,6 +59,16 @@
 /*********************************************************************
  * TYPEDEFS
  */
+// Sensor Data
+typedef struct {
+    uint8_t x_L;
+    uint8_t x_H;
+    uint8_t y_L;
+    uint8_t y_H;
+    uint8_t z_L;
+    uint8_t z_H;
+} sensor_data_t;
+
 // Data Rate
 typedef enum {
     DATARATE_POWER_DOWN = 0x00,
@@ -71,8 +87,8 @@ typedef enum {
 typedef enum {
     FIFO_MODE_BYPASS = 0x0,
     FIFO_MODE_FIFO = 0x01,
-    FIFO_MODE_STREAM = 0x10,
-    FIFO_MODE_STREAM_TO_FIFO = 0x11
+    FIFO_MODE_STREAM = 0x2,
+    FIFO_MODE_STREAM_TO_FIFO = 0x3
 } fifo_mode_t;
 
 /*********************************************************************
@@ -112,6 +128,7 @@ static bool Mis2dh_configureDataRate(data_rate_t dataRate);
 static bool Mis2dh_setLowPowerMode(bool enable);
 static bool Mis2dh_setFifoMode(fifo_mode_t fifoMode);
 static bool Mis2dh_enableFifo(bool enable);
+static bool Mis2dh_readSensorData(sensor_data_t *data);
 
 // I2C
 static bool Mis2dh_writeRegister(uint8_t regAddress, uint8_t data);
@@ -208,8 +225,20 @@ static void Mis2dh_init(void) {
 static void Mis2dh_taskFxn(UArg a0, UArg a1) {
     Mis2dh_init();
 
+    sensor_data_t data;
+
     for (;;) {
         Semaphore_pend(semaphore, BIOS_WAIT_FOREVER);
+        if (Mis2dh_readSensorData(&data)) {
+            Log_info0("Read data from FIFO");
+            Log_info2("XL: %d, XH: %d", data.x_L, data.x_H);
+            Log_info2("YL: %d, YH: %d", data.y_L, data.y_H);
+            Log_info2("ZL: %d, ZH: %d", data.z_L, data.z_H);
+        }
+        else {
+            Log_error0("Error reading data from FIFO. Exiting");
+            Task_exit();
+        }
     }
 }
 
@@ -364,4 +393,38 @@ static bool Mis2dh_enableFifo(bool enable) {
     if (enable) ctrl_reg5_data |= MIS2DH_FIFO_ENABLE_MASK;
 
     return Mis2dh_writeRegister(MIS2DH_CTRL_REG5, ctrl_reg5_data);
+}
+
+/*********************************************************************
+ * @fn      Mis2dh_readSensorData
+ *
+ * @brief   Read accelerometer data from MIS2DH FIFO.
+ *
+ * @param   data - X, Y, and Z accelerometer data.
+ */
+static bool Mis2dh_readSensorData(sensor_data_t *data) {
+    uint8_t txBuffer[1];
+    uint8_t rxBuffer[6];
+
+    txBuffer[0] = MIS2DH_OUT_X_L;
+
+    transaction.writeBuf   = txBuffer;
+    transaction.writeCount = 1;
+    transaction.readBuf    = rxBuffer;
+    transaction.readCount  = 6;
+
+    if (Util_i2cTransfer(&transaction)) {
+        Log_info0("I2C transfer successful");
+        data->x_L = rxBuffer[0];
+        data->x_H = rxBuffer[1];
+        data->y_L = rxBuffer[2];
+        data->y_H = rxBuffer[3];
+        data->z_L = rxBuffer[4];
+        data->z_H = rxBuffer[5];
+        return true;
+    }
+    else {
+        Log_error0("I2C transfer failed");
+        return false;
+    }
 }
