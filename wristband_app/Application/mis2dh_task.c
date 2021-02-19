@@ -34,7 +34,7 @@
 #define MIS2DH_THREAD_STACK_SIZE        1024
 #define MIS2DH_TASK_PRIORITY            1
 
-#define MIS2DH_CLOCK_PERIOD_MS          5*1000
+#define MIS2DH_CLOCK_PERIOD_MS          1000
 
 // I2C
 #define MIS2DH_ADDRESS                  0x18
@@ -178,8 +178,8 @@ static void Mis2dh_init(void) {
     semaphore = Semaphore_create(0, &semParams, Error_IGNORE);
 
     // Set data rate
-    if (Mis2dh_configureDataRate(DATARATE_10HZ)) {
-        Log_info0("Set data rate to 10Hz");
+    if (Mis2dh_configureDataRate(DATARATE_1HZ)) {
+        Log_info0("Set data rate to 1Hz");
     }
     else {
         Log_error0("Error setting data rate. Exiting");
@@ -246,15 +246,17 @@ static void Mis2dh_taskFxn(UArg a0, UArg a1) {
         Mis2dh_isFifoEmpty(&empty);
         Log_info3("Num Samples: %d, Full: %d, Empty: %d", num_samples, full, empty);
 
-        if (Mis2dh_readSensorData(&data)) {
-            Log_info0("Read data from FIFO");
-            Log_info2("XL: %d, XH: %d", data.x_L, data.x_H);
-            Log_info2("YL: %d, YH: %d", data.y_L, data.y_H);
-            Log_info2("ZL: %d, ZH: %d", data.z_L, data.z_H);
-        }
-        else {
-            Log_error0("Error reading data from FIFO. Exiting");
-            Task_exit();
+        if (!empty) {
+            if (Mis2dh_readSensorData(&data)) {
+                Log_info0("Read data from FIFO");
+                Log_info2("XL: %d, XH: %d", data.x_L, data.x_H);
+                Log_info2("YL: %d, YH: %d", data.y_L, data.y_H);
+                Log_info2("ZL: %d, ZH: %d", data.z_L, data.z_H);
+            }
+            else {
+                Log_error0("Error reading data from FIFO. Exiting");
+                Task_exit();
+            }
         }
     }
 }
