@@ -95,7 +95,7 @@ void mis2dh::read_accelerometer() {
             
             // Add data to FIFO
             if (m_fifo_enabled && m_fifo_mode != FIFO_MODE_BYPASS) {
-                m_fifo.push(data);
+                this->push_fifo(data);
             }
 
             m_prev_ms = m_current_ms;
@@ -143,6 +143,18 @@ void mis2dh::set_fifo_ctrl_reg(uint8_t data) {
 
     m_fifo_mode = (fifo_mode_t)(m_fifo_ctrl_reg >> 6);
 }
+
+/*********************************************************************
+ * @fn      set_fifo_src_reg
+ *
+ * @brief   Write to FIFO_SRC_REG.
+ * 
+ * @param   data - Data to write.
+ */
+void mis2dh::set_fifo_src_reg(uint8_t data) {
+    m_fifo_src_reg = data;
+}
+
 
 /*********************************************************************
  * @fn      get_power_mode
@@ -263,8 +275,7 @@ void mis2dh::requestEvent() {
         case MIS2DH_OUT_Z_H: {
             if (m_fifo.empty()) break;
 
-            sensor_data_t data = m_fifo.front();
-            m_fifo.pop();
+            sensor_data_t data = pop_fifo();
 
             Wire.write(data.x_L);
             Wire.write(data.x_H);
@@ -287,6 +298,59 @@ void mis2dh::requestEvent() {
             Serial.println(data.z_H);
             break;
         }
+        case MIS2DH_FIFO_SRC_REG:
+            Wire.write(m_fifo_src_reg);
+            Serial.println(m_fifo_src_reg);
+            break;
+    }
+}
+
+/*********************************************************************
+ * @fn      pop_fifo
+ *
+ * @brief   Get the first sample from the FIFO.
+ * 
+ * @returns Sensor data.
+ */
+sensor_data_t mis2dh::pop_fifo() {
+    // If OVRN bit is set high, reset after reading sample
+    m_fifo_src_reg &= ~0x40;
+
+    // Decrement FSS (number of unread samples)
+    int num_samples = m_fifo_src_reg & 0x1F;
+    if (num_samples > 0) num_samples--;
+    m_fifo_src_reg |= (num_samples & 0x1F);
+
+    sensor_data_t data = m_fifo.front();
+    m_fifo.pop();
+
+    // Set EMPTY bit if FIFO is empty
+    m_fifo_src_reg &= ~0x20;
+    if (m_fifo.empty()) {
+        m_fifo_src_reg |= 0x20;
+    }
+
+    return data;
+}
+
+/*********************************************************************
+ * @fn      push_fifo
+ *
+ * @brief   Push data to the FIFO.
+ * 
+ * @param   data - Sensor data.
+ */
+void mis2dh::push_fifo(sensor_data_t data) {
+    m_fifo.push(data);
+    // Increment FSS (number of unread samples)
+    int num_samples = m_fifo_src_reg & 0x1F;
+    num_samples++;
+    m_fifo_src_reg |= (num_samples & 0x1F);
+
+    // Set OVRN bit if FIFO is full
+    m_fifo_src_reg &= ~0x40;
+    if (m_fifo.size() == FIFO_DEPTH) {
+        m_fifo_src_reg |= 0x40;
     }
 }
 

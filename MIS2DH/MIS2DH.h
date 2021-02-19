@@ -99,6 +99,7 @@ class mis2dh {
         void set_ctrl_reg1(uint8_t data);
         void set_ctrl_reg5(uint8_t data);
         void set_fifo_ctrl_reg(uint8_t data);
+        void set_fifo_src_reg(uint8_t data);
 
         // Attribute getters
         power_mode_t get_power_mode() const;
@@ -109,6 +110,9 @@ class mis2dh {
         // Static functions
         static void receiveEvent(int num);
         static void requestEvent();
+
+        static sensor_data_t pop_fifo();
+        static void push_fifo(sensor_data_t data);
 
     private:
         data_rate_t m_data_rate;
