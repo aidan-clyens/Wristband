@@ -15,6 +15,7 @@
 #include <ti/sysbios/knl/Task.h>
 #include <ti/sysbios/knl/Clock.h>
 #include <ti/sysbios/knl/Semaphore.h>
+#include <ti/sysbios/knl/Queue.h>
 
 #include <ti/drivers/GPIO.h>
 
@@ -23,6 +24,7 @@
 #include <icall.h>
 #include <util.h>
 
+#include <sensors_task.h>
 #include <i2c_util.h>
 
 /*********************************************************************
@@ -54,6 +56,10 @@ static ICall_EntityID selfEntity;
 // local events.
 static ICall_SyncHandle syncEvent;
 
+// Queue object used for app messages
+static Queue_Struct appMsgQueue;
+static Queue_Handle appMsgQueueHandle;
+
 // Clocks
 static Clock_Struct accelerometerReadClock;
 static Clock_Handle accelerometerReadClockHandle;
@@ -68,6 +74,7 @@ static Semaphore_Handle swiSemaphore;
 // Task functions
 static void Sensors_init(void);
 static void Sensors_taskFxn(UArg a0, UArg a1);
+static void Sensors_processApplicationMessage(sensors_msg_t *pMsg);
 
 static void Sensors_accelerometerReadSwiFxn(UArg a0);
 
@@ -111,6 +118,10 @@ static void Sensors_init(void) {
         Task_exit();
     }
 
+    // Create message queue
+    Queue_construct(&appMsgQueue, NULL);
+    appMsgQueueHandle = Queue_handle(&appMsgQueue);
+
     // Create semaphores
     Semaphore_Params semParams;
     Semaphore_Params_init(&semParams);
@@ -150,6 +161,40 @@ static void Sensors_taskFxn(UArg a0, UArg a1) {
             Log_info0("Read from Accelerometer");
             readAccelerometerFlag = false;
         }
+
+        // Process messages sent from another task or another context.
+        while(!Queue_empty(appMsgQueueHandle)) {
+            sensors_msg_t *pMsg = (sensors_msg_t *)Util_dequeueMsg(appMsgQueueHandle);
+            if(pMsg) {
+                Sensors_processApplicationMessage(pMsg);
+                // Free the received message.
+                ICall_free(pMsg);
+            }
+        }
+    }
+}
+
+/*********************************************************************
+ * @fn      Sensors_processApplicationMessage
+ *
+ * @brief   Process application messages.
+ *
+ * @param   pMsg  Pointer to the message of type max32664_msg_t.
+ */
+static void Sensors_processApplicationMessage(sensors_msg_t *pMsg) {
+    switch(pMsg->event) {
+        case SENSORS_INIT_HEARTRATE_MODE:
+            break;
+        case SENSORS_INIT_ECG_MODE:
+            break;
+        case SENSORS_TRIGGER_ALERT:
+            break;
+        default:
+            break;
+    }
+
+    if(pMsg->pData != NULL) {
+        ICall_free(pMsg->pData);
     }
 }
 
@@ -165,3 +210,26 @@ static void Sensors_accelerometerReadSwiFxn(UArg a0) {
     Semaphore_post(swiSemaphore);
 }
 
+/*********************************************************************
+ * @fn     Sensors_enqueueMsg
+ *
+ * @brief  Utility function that sends the event and data to the application.
+ *         Handled in the task loop.
+ *
+ * @param  event    Event type
+ * @param  pData    Pointer to message data
+ */
+bool Sensors_enqueueMsg(sensors_event_t event, void *pData) {
+    uint8_t success;
+    sensors_msg_t *pMsg = ICall_malloc(sizeof(sensors_msg_t));
+
+    if(pMsg) {
+        pMsg->event = event;
+        pMsg->pData = pData;
+
+        success = Util_enqueueMsg(appMsgQueueHandle, syncEvent, (uint8_t *)pMsg);
+        return success;
+    }
+
+    return false;
+}
