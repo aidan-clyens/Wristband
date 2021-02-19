@@ -49,12 +49,16 @@
 #define MIS2DH_OUT_Z_L                  0x2C
 #define MIS2DH_OUT_Z_H                  0x2D
 #define MIS2DH_FIFO_CTRL_REG            0x2E
+#define MIS2DH_FIFO_SRC_REG             0x2F
 
 // Masks
 #define MIS2DH_DATARATE_MASK            0xF0
 #define MIS2DH_LOW_POWER_MODE_MASK      0x08
 #define MIS2DH_FIFO_ENABLE_MASK         0x40
 #define MIS2DH_FIFO_MODE_MASK           0xC0
+#define MIS2DH_FIFO_FSS_MASK            0x1F
+#define MIS2DH_FIFO_EMPTY_MASK          0x20
+#define MIS2DH_FIFO_OVRN_MASK           0x40
 
 /*********************************************************************
  * TYPEDEFS
@@ -128,6 +132,8 @@ static bool Mis2dh_configureDataRate(data_rate_t dataRate);
 static bool Mis2dh_setLowPowerMode(bool enable);
 static bool Mis2dh_setFifoMode(fifo_mode_t fifoMode);
 static bool Mis2dh_enableFifo(bool enable);
+static bool Mis2dh_isFifoFull(bool *full);
+static bool Mis2dh_isFifoEmpty(bool *empty);
 static bool Mis2dh_readSensorData(sensor_data_t *data);
 
 // I2C
@@ -227,6 +233,9 @@ static void Mis2dh_taskFxn(UArg a0, UArg a1) {
 
     sensor_data_t data;
 
+    bool full;
+    bool empty;
+
     for (;;) {
         Semaphore_pend(semaphore, BIOS_WAIT_FOREVER);
         if (Mis2dh_readSensorData(&data)) {
@@ -234,6 +243,10 @@ static void Mis2dh_taskFxn(UArg a0, UArg a1) {
             Log_info2("XL: %d, XH: %d", data.x_L, data.x_H);
             Log_info2("YL: %d, YH: %d", data.y_L, data.y_H);
             Log_info2("ZL: %d, ZH: %d", data.z_L, data.z_H);
+
+            Mis2dh_isFifoFull(&full);
+            Mis2dh_isFifoEmpty(&empty);
+            Log_info2("Full: %d, Empty: %d", full, empty);
         }
         else {
             Log_error0("Error reading data from FIFO. Exiting");
@@ -393,6 +406,44 @@ static bool Mis2dh_enableFifo(bool enable) {
     if (enable) ctrl_reg5_data |= MIS2DH_FIFO_ENABLE_MASK;
 
     return Mis2dh_writeRegister(MIS2DH_CTRL_REG5, ctrl_reg5_data);
+}
+
+/*********************************************************************
+ * @fn      Mis2dh_isFifoFull
+ *
+ * @brief   Check if the MIS2DH FIFO is full.
+ *
+ * @param   full - Boolean indicating whether the FIFO is full or not.
+ */
+static bool Mis2dh_isFifoFull(bool *full) {
+    uint8_t fifo_src_reg_data;
+
+    if (!Mis2dh_readRegister(MIS2DH_FIFO_SRC_REG, &fifo_src_reg_data)) {
+        return false;
+    }
+
+    (*full) = (fifo_src_reg_data & MIS2DH_FIFO_OVRN_MASK) > 0;
+
+    return true;
+}
+
+/*********************************************************************
+ * @fn      Mis2dh_isFifoEmpty
+ *
+ * @brief   Check if the MIS2DH FIFO is empty.
+ *
+ * @param   empty - Boolean indicating whether the FIFO is empty or not.
+ */
+static bool Mis2dh_isFifoEmpty(bool *empty) {
+    uint8_t fifo_src_reg_data;
+
+    if (!Mis2dh_readRegister(MIS2DH_FIFO_SRC_REG, &fifo_src_reg_data)) {
+        return false;
+    }
+
+    (*empty) = (fifo_src_reg_data & MIS2DH_FIFO_EMPTY_MASK) > 0;
+
+    return true;
 }
 
 /*********************************************************************
