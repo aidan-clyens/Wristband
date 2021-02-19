@@ -33,10 +33,6 @@ typedef enum {
  * FUNCTIONS
  */
 
-/*
- * Task creation function for the Max32664 Biometric Sensor Hub.
- */
-extern void Max32664_createTask(void);
 extern bool Max32664_enqueueMsg(max32664_event_t event, void *pData);
 
 

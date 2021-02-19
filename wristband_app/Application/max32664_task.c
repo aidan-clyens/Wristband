@@ -12,7 +12,6 @@
 #include <xdc/runtime/Error.h>
 #include <ti/sysbios/BIOS.h>
 #include <ti/sysbios/knl/Semaphore.h>
-#include <ti/sysbios/knl/Task.h>
 #include <ti/drivers/GPIO.h>
 #include <ti/drivers/I2C.h>
 
@@ -31,11 +30,7 @@
 /*********************************************************************
  * CONSTANTS
  */
-// Task
-#define MAX32664_THREAD_STACK_SIZE                      1024
-#define MAX32664_TASK_PRIORITY                          1
-
-#define MAX32664_REPORT_PERIOD_MS           5*1000  // Change to 2*40 ms
+#define MAX32664_REPORT_PERIOD_MS           2*40  // Change to 2*40 ms
 
 #define MAX32664_NORMAL_REPORT_ALGORITHM_ONLY_SIZE      20
 #define MAX32664_MAX_NUM_SAMPLES            4
@@ -124,9 +119,6 @@ typedef struct {
 /*********************************************************************
  * GLOBAL VARIABLES
  */
-Task_Struct max32664Task;
-uint8_t max32664TaskStack[MAX32664_THREAD_STACK_SIZE];
-
 bool heartRateAlgorithmInitialized = false;
 
 
@@ -157,7 +149,6 @@ static uint8_t reportBuffer[MAX32664_MAX_NUM_SAMPLES * MAX32664_NORMAL_REPORT_AL
 static max32664_operating_mode_t operatingMode;
 
 // I2C
-static I2C_Handle i2cHandle;
 static I2C_Transaction transaction;
 
 
@@ -190,31 +181,10 @@ static status_t Max32664_readFifoData(uint8_t *data, int num_bytes);
 static status_t Max32664_readByte(uint8_t family, uint8_t index, uint8_t *data);
 static status_t Max32664_writeByte(uint8_t family, uint8_t index, uint8_t data, int delay);
 
-// I2C
-static bool Max32664_i2cInit(void);
-
 
 /*********************************************************************
  * PUBLIC FUNCTIONS
  */
-
-/*********************************************************************
- * @fn      Max32664_createTask
- *
- * @brief   Task creation function for the Max32664 Biometric Sensor Hub.
- */
-void Max32664_createTask(void)
-{
-    Task_Params taskParams;
-
-    // Configure task
-    Task_Params_init(&taskParams);
-    taskParams.stack = max32664TaskStack;
-    taskParams.stackSize = MAX32664_THREAD_STACK_SIZE;
-    taskParams.priority = MAX32664_TASK_PRIORITY;
-
-    Task_construct(&max32664Task, Max32664_taskFxn, &taskParams, Error_IGNORE);
-}
 
 /*********************************************************************
  * @fn      Max32664_init
