@@ -11,18 +11,28 @@
 #include <xdc/std.h>
 #include <xdc/runtime/Error.h>
 
+#include <ti/sysbios/BIOS.h>
 #include <ti/sysbios/knl/Task.h>
+#include <ti/sysbios/knl/Clock.h>
+#include <ti/sysbios/knl/Semaphore.h>
+
+#include <ti/drivers/GPIO.h>
 
 #include <uartlog/UartLog.h>
-
+#include <Board.h>
 #include <icall.h>
+#include <util.h>
 
+#include <i2c_util.h>
 
 /*********************************************************************
  * CONSTANTS
  */
-#define SENSORS_THREAD_STACK_SIZE                      1024
-#define SENSORS_TASK_PRIORITY                          1
+#define SENSORS_THREAD_STACK_SIZE                       1024
+#define SENSORS_TASK_PRIORITY                           1
+
+// Clocks
+#define SENSORS_ACCELEROMETER_POLLING_PERIOD_MS         200
 
 /*********************************************************************
  * TYPEDEFS
@@ -44,12 +54,22 @@ static ICall_EntityID selfEntity;
 // local events.
 static ICall_SyncHandle syncEvent;
 
+// Clocks
+static Clock_Struct accelerometerReadClock;
+static Clock_Handle accelerometerReadClockHandle;
+static bool readAccelerometerFlag;
+
+// Semaphores
+static Semaphore_Handle swiSemaphore;
+
 /*********************************************************************
  * LOCAL FUNCTIONS
  */
 // Task functions
 static void Sensors_init(void);
 static void Sensors_taskFxn(UArg a0, UArg a1);
+
+static void Sensors_accelerometerReadSwiFxn(UArg a0);
 
 /*********************************************************************
  * PUBLIC FUNCTIONS
@@ -80,6 +100,38 @@ void Sensors_createTask(void) {
 static void Sensors_init(void) {
     // Register application with ICall
     ICall_registerApp(&selfEntity, &syncEvent);
+
+    // Initialize GPIO pins
+    GPIO_setConfig(Board_GPIO_MAX32664_MFIO, GPIO_CFG_OUT_STD | GPIO_CFG_OUT_LOW);
+    GPIO_setConfig(Board_GPIO_MAX32664_RESET, GPIO_CFG_OUT_STD | GPIO_CFG_OUT_HIGH);
+
+    // Initialize I2C
+    if (!Util_i2cInit()) {
+        Log_error0("I2C failed to initialize");
+        Task_exit();
+    }
+
+    // Create semaphores
+    Semaphore_Params semParams;
+    Semaphore_Params_init(&semParams);
+    swiSemaphore = Semaphore_create(0, &semParams, Error_IGNORE);
+
+    // Create clocks
+    accelerometerReadClockHandle = Util_constructClock(
+            &accelerometerReadClock,
+            Sensors_accelerometerReadSwiFxn,
+            SENSORS_ACCELEROMETER_POLLING_PERIOD_MS,
+            SENSORS_ACCELEROMETER_POLLING_PERIOD_MS,
+            0,
+            NULL
+    );
+
+    readAccelerometerFlag = false;
+
+    // Start clocks
+    Util_startClock(&accelerometerReadClock);
+
+    Log_info0("Sensors initialized");
 }
 
 /*********************************************************************
@@ -93,7 +145,23 @@ static void Sensors_taskFxn(UArg a0, UArg a1) {
     Sensors_init();
 
     for (;;) {
-
+        Semaphore_pend(swiSemaphore, BIOS_WAIT_FOREVER);
+        if (readAccelerometerFlag) {
+            Log_info0("Read from Accelerometer");
+            readAccelerometerFlag = false;
+        }
     }
+}
+
+/*********************************************************************
+ * @fn      Sensors_accelerometerReadSwiFxn
+ *
+ * @brief   Callback to read accelerometer samples.
+ *
+ * @param   a0 - not used.
+ */
+static void Sensors_accelerometerReadSwiFxn(UArg a0) {
+    readAccelerometerFlag = true;
+    Semaphore_post(swiSemaphore);
 }
 
