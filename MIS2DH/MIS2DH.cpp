@@ -86,8 +86,20 @@ void mis2dh::read_accelerometer() {
     // Read accelerometer data
     if (m_data_rate != DATARATE_POWER_DOWN) {
         if (m_current_ms - m_prev_ms > m_sensor_period_ms) {
-            // TODO: Add data to FIFO
             // Serial.println("Read accelerometer data");
+            // Add data to FIFO
+            if (m_fifo_enabled && m_fifo_mode != FIFO_MODE_BYPASS) {
+                sensor_data_t data;
+                data.x_L = 10;
+                data.x_H = 11;
+                data.y_L = 12;
+                data.y_H = 13;
+                data.z_L = 14;
+                data.z_H = 15;
+
+                m_fifo.push(data);
+            }
+
             m_prev_ms = m_current_ms;
         }
     }

@@ -23,6 +23,16 @@
 /*****************************************************
  *  Typedefs
  * ***************************************************/
+// Sensor Data
+typedef struct {
+    uint8_t x_L;
+    uint8_t x_H;
+    uint8_t y_L;
+    uint8_t y_H;
+    uint8_t z_L;
+    uint8_t z_H;
+} sensor_data_t;
+
 // Message
 typedef struct {
     uint8_t register_address;
@@ -95,7 +105,7 @@ class mis2dh {
         static void requestEvent();
 
     private:
-        QueueArray<uint8_t> m_fifo;
+        QueueArray<sensor_data_t> m_fifo;
 
         data_rate_t m_data_rate;
         fifo_mode_t m_fifo_mode;
