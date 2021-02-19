@@ -66,8 +66,7 @@
 #include "hal_assert.h"
 #include "bcomdef.h"
 #include "project_zero.h"
-#include "max32664_task.h"
-#include "mis2dh_task.h"
+#include "sensors_task.h"
 
 #include "i2c_util.h"
 
@@ -160,8 +159,7 @@ int main()
 
     /* Initialize user tasks */
     ProjectZero_createTask();
-    Max32664_createTask();
-    Mis2dh_createTask();
+    Sensors_createTask();
 
     /* enable interrupts and start SYS/BIOS */
     BIOS_start();
