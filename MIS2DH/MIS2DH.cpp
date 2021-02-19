@@ -1,6 +1,6 @@
 #include "MIS2DH.h"
 
-
+QueueArray<sensor_data_t> mis2dh::m_fifo(FIFO_DEPTH);
 uint8_t mis2dh::m_ctrl_reg1 = 0x0;
 uint8_t mis2dh::m_ctrl_reg5 = 0x0;
 uint8_t mis2dh::m_fifo_ctrl_reg = 0x0;
@@ -12,8 +12,7 @@ uint8_t mis2dh::m_fifo_src_reg = 0x0;
  *
  * @brief   MIS2DH constructor.
  */
-mis2dh::mis2dh() : m_fifo(FIFO_DEPTH),
-                   m_fifo_mode(FIFO_MODE_BYPASS),
+mis2dh::mis2dh() : m_fifo_mode(FIFO_MODE_BYPASS),
                    m_data_rate(DATARATE_POWER_DOWN),
                    m_low_power_mode(false),
                    m_high_resolution_mode(false),
@@ -86,17 +85,16 @@ void mis2dh::read_accelerometer() {
     // Read accelerometer data
     if (m_data_rate != DATARATE_POWER_DOWN) {
         if (m_current_ms - m_prev_ms > m_sensor_period_ms) {
-            // Serial.println("Read accelerometer data");
+            sensor_data_t data;
+            data.x_L = 10;
+            data.x_H = 11;
+            data.y_L = 12;
+            data.y_H = 13;
+            data.z_L = 14;
+            data.z_H = 15;
+            
             // Add data to FIFO
             if (m_fifo_enabled && m_fifo_mode != FIFO_MODE_BYPASS) {
-                sensor_data_t data;
-                data.x_L = 10;
-                data.x_H = 11;
-                data.y_L = 12;
-                data.y_H = 13;
-                data.z_L = 14;
-                data.z_H = 15;
-
                 m_fifo.push(data);
             }
 
@@ -115,6 +113,7 @@ void mis2dh::read_accelerometer() {
 void mis2dh::set_ctrl_reg1(uint8_t data) {
     m_ctrl_reg1 = data;
     m_data_rate = (data_rate_t)(m_ctrl_reg1 >> 4);
+    m_sensor_period_ms = this->get_period_from_data_rate();
 
     m_low_power_mode = (m_ctrl_reg1 & 0x8) > 0;
 }
@@ -256,6 +255,38 @@ void mis2dh::requestEvent() {
             Wire.write(m_fifo_ctrl_reg);
             Serial.println(m_fifo_ctrl_reg);
             break;
+        case MIS2DH_OUT_X_L:
+        case MIS2DH_OUT_X_H:
+        case MIS2DH_OUT_Y_L:
+        case MIS2DH_OUT_Y_H:
+        case MIS2DH_OUT_Z_L:
+        case MIS2DH_OUT_Z_H: {
+            if (m_fifo.empty()) break;
+
+            sensor_data_t data = m_fifo.front();
+            m_fifo.pop();
+
+            Wire.write(data.x_L);
+            Wire.write(data.x_H);
+            Wire.write(data.y_L);
+            Wire.write(data.y_H);
+            Wire.write(data.z_L);
+            Wire.write(data.z_H);
+
+            Serial.print("XL: ");
+            Serial.print(data.x_L);
+            Serial.print(" XH: ");
+            Serial.print(data.x_H);
+            Serial.print(" YL: ");
+            Serial.print(data.y_L);
+            Serial.print(" YH: ");
+            Serial.print(data.y_H);
+            Serial.print(" ZL: ");
+            Serial.print(data.z_L);
+            Serial.print(" ZH: ");
+            Serial.println(data.z_H);
+            break;
+        }
     }
 }
 

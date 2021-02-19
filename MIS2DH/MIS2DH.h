@@ -16,6 +16,12 @@
 // Registers
 #define MIS2DH_CTRL_REG1            0x20
 #define MIS2DH_CTRL_REG5            0x24
+#define MIS2DH_OUT_X_L              0x28
+#define MIS2DH_OUT_X_H              0x29
+#define MIS2DH_OUT_Y_L              0x2A
+#define MIS2DH_OUT_Y_H              0x2B
+#define MIS2DH_OUT_Z_L              0x2C
+#define MIS2DH_OUT_Z_H              0x2D
 #define MIS2DH_FIFO_CTRL_REG        0x2E
 #define MIS2DH_FIFO_SRC_REG         0x2F
 
@@ -105,8 +111,6 @@ class mis2dh {
         static void requestEvent();
 
     private:
-        QueueArray<sensor_data_t> m_fifo;
-
         data_rate_t m_data_rate;
         fifo_mode_t m_fifo_mode;
 
@@ -114,6 +118,8 @@ class mis2dh {
         bool m_high_resolution_mode;
 
         bool m_fifo_enabled;
+
+        static QueueArray<sensor_data_t> m_fifo;
 
         static uint8_t m_ctrl_reg1;
         static uint8_t m_ctrl_reg5;
