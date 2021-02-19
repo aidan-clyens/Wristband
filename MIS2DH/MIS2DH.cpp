@@ -318,6 +318,7 @@ sensor_data_t mis2dh::pop_fifo() {
 
     // Decrement FSS (number of unread samples)
     int num_samples = m_fifo_src_reg & 0x1F;
+    m_fifo_src_reg &= ~0x1F;
     if (num_samples > 0) num_samples--;
     m_fifo_src_reg |= (num_samples & 0x1F);
 
@@ -342,9 +343,13 @@ sensor_data_t mis2dh::pop_fifo() {
  */
 void mis2dh::push_fifo(sensor_data_t data) {
     m_fifo.push(data);
+    // Clear EMPTY bit
+    m_fifo_src_reg &= ~0x20;
+
     // Increment FSS (number of unread samples)
     int num_samples = m_fifo_src_reg & 0x1F;
     num_samples++;
+    m_fifo_src_reg &= ~0x1F;
     m_fifo_src_reg |= (num_samples & 0x1F);
 
     // Set OVRN bit if FIFO is full

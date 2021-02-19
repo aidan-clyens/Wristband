@@ -120,7 +120,6 @@ Type QueueArray<Type>::back() const {
  */
 template <typename Type>
 void QueueArray<Type>::push(Type const &obj) {
-  if (queue_size == queue_capacity) return;
   //  Move back index forwards, accounting for array wraparound
   back_index = ++back_index % queue_capacity;
   queue[back_index] = obj;
