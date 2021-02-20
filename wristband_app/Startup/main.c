@@ -68,8 +68,6 @@
 #include "project_zero.h"
 #include "sensors_task.h"
 
-#include "i2c_util.h"
-
 #ifndef USE_DEFAULT_USER_CFG
 #include "ble_user_config.h"
 // BLE user defined configuration
@@ -151,11 +149,6 @@ int main()
 
     /* Initialize GPIO */
     GPIO_init();
-
-    /* Initialize I2C */
-    if (!Util_i2cInit()) {
-        return (1);
-    }
 
     /* Initialize user tasks */
     ProjectZero_createTask();
