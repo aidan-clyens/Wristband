@@ -35,7 +35,8 @@
 #define SENSORS_TASK_PRIORITY                           1
 
 // Clocks
-#define SENSORS_ACCELEROMETER_POLLING_PERIOD_MS         200
+#define SENSORS_ACCELEROMETER_POLLING_PERIOD_MS         20000     // Change to 200 ms
+#define SENSORS_HEART_RATE_POLLING_PERIOD_MS            4000      // Change to 40 ms
 
 /*********************************************************************
  * TYPEDEFS
@@ -66,6 +67,10 @@ static Clock_Struct accelerometerReadClock;
 static Clock_Handle accelerometerReadClockHandle;
 static bool readAccelerometerFlag;
 
+static Clock_Struct heartRateReadClock;
+static Clock_Handle heartRateReadClockHandle;
+static bool readHeartRateFlag;
+
 // Semaphores
 static Semaphore_Handle swiSemaphore;
 
@@ -78,6 +83,7 @@ static void Sensors_taskFxn(UArg a0, UArg a1);
 static void Sensors_processApplicationMessage(sensors_msg_t *pMsg);
 
 static void Sensors_accelerometerReadSwiFxn(UArg a0);
+static void Sensors_heartRateReadSwiFxn(UArg a0);
 
 /*********************************************************************
  * PUBLIC FUNCTIONS
@@ -137,8 +143,17 @@ static void Sensors_init(void) {
             0,
             NULL
     );
-
     readAccelerometerFlag = false;
+
+    heartRateReadClockHandle = Util_constructClock(
+            &heartRateReadClock,
+            Sensors_heartRateReadSwiFxn,
+            SENSORS_ACCELEROMETER_POLLING_PERIOD_MS,
+            SENSORS_HEART_RATE_POLLING_PERIOD_MS,
+            0,
+            NULL
+    );
+    readHeartRateFlag = false;
 
     // Start MAX32664 in Application Mode
     Max32664_initApplicationMode();
@@ -148,6 +163,7 @@ static void Sensors_init(void) {
 
     // Start clocks
     Util_startClock(&accelerometerReadClock);
+    Util_startClock(&heartRateReadClock);
 
     Log_info0("Sensors initialized");
 }
@@ -162,11 +178,28 @@ static void Sensors_init(void) {
 static void Sensors_taskFxn(UArg a0, UArg a1) {
     Sensors_init();
 
+    uint8_t num_samples;
+
     for (;;) {
         Semaphore_pend(swiSemaphore, BIOS_WAIT_FOREVER);
         if (readAccelerometerFlag) {
             Log_info0("Read from Accelerometer");
+
+            // Read 5 samples from accelerometer
+
+            // Write samples to MAX32664
+
             readAccelerometerFlag = false;
+        }
+
+        if (readHeartRateFlag) {
+            Log_info0("Read Heart Rate");
+
+            // Read report from MAX32664
+            Max32664_readFifoNumSamples(&num_samples);
+            Log_info1("Num samples: %d", num_samples);
+
+            readHeartRateFlag = false;
         }
 
         // Process messages sent from another task or another context.
@@ -214,6 +247,18 @@ static void Sensors_processApplicationMessage(sensors_msg_t *pMsg) {
  */
 static void Sensors_accelerometerReadSwiFxn(UArg a0) {
     readAccelerometerFlag = true;
+    Semaphore_post(swiSemaphore);
+}
+
+/*********************************************************************
+ * @fn      Sensors_heartRateReadSwiFxn
+ *
+ * @brief   Callback to read heart rate reports.
+ *
+ * @param   a0 - not used.
+ */
+static void Sensors_heartRateReadSwiFxn(UArg a0) {
+    readHeartRateFlag = true;
     Semaphore_post(swiSemaphore);
 }
 
