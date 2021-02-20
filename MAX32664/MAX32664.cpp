@@ -153,12 +153,14 @@ void max32664::requestEvent() {
     Serial.println("\n/*** REQUEST EVENT ***/");
 
     int count;
+    uint8_t data_buffer[2];
 
     switch (family) {
         case READ_SENSOR_HUB_STATUS:
+            data_buffer[0] = SUCCESS;
+            data_buffer[1] = m_sensor_hub_status;
+            Wire.write(data_buffer, 2);
             Serial.println("Read sensor hub status");
-            Wire.write(SUCCESS);
-            Wire.write(m_sensor_hub_status);
             break;
         case SET_OUTPUT_MODE:
             switch (index) {
@@ -186,9 +188,10 @@ void max32664::requestEvent() {
         case READ_OUTPUT_MODE:
             switch (index) {
                 case 0x0:
+                    data_buffer[0] = SUCCESS;
+                    data_buffer[1] = m_output_mode;
+                    Wire.write(data_buffer, 2);
                     Serial.println("Read output mode");
-                    Wire.write(m_output_mode);
-                    Wire.write(SUCCESS);
                     break;
                 default:
                     Wire.write(ILLEGAL_FAMILY);
@@ -200,30 +203,31 @@ void max32664::requestEvent() {
         case READ_OUTPUT_FIFO:
             switch (index) {
                 case NUM_FIFO_SAMPLES:
+                    data_buffer[0] = SUCCESS;
+                    data_buffer[1] = (uint8_t)(m_output_fifo.size() / REPORT_ALGORITHM_NORMAL_SIZE);
+                    Wire.write(data_buffer, 2);
                     num_samples_read = m_output_fifo.size() / REPORT_ALGORITHM_NORMAL_SIZE;
                     Serial.print("Read number of FIFO samples: ");
                     Serial.println(m_output_fifo.size() / REPORT_ALGORITHM_NORMAL_SIZE);
-                    Wire.write((uint8_t)(m_output_fifo.size() / REPORT_ALGORITHM_NORMAL_SIZE));
-                    Wire.write(SUCCESS);
                     break;
                 case READ_FIFO_DATA: {
                     Serial.println("Reading data from FIFO:");
                     count = num_samples_read * REPORT_ALGORITHM_NORMAL_SIZE;
-                    uint8_t data[count];
+                    uint8_t report_data[count+1];
+                    report_data[0] = SUCCESS;
                     for (int i = 0; i < count; i++) {
-                        data[i] = m_output_fifo.front();
+                        report_data[i+1] = m_output_fifo.front();
                         m_output_fifo.pop();
                     }
 
-                    Wire.write(data, count);
-                    Wire.write(SUCCESS);
+                    Wire.write(report_data, count+1);
+                    break;
                 }
-                break;
                 default:
                     Wire.write(ILLEGAL_FAMILY);
                     Serial.print("\nInvalid command: ");
                     Serial.print(family);
-                break;
+                    break;
             }
             break;
         case SENSOR_MODE_ENABLE:

@@ -497,10 +497,10 @@ static status_t Max32664_readFifoData(uint8_t *data, int num_bytes)
 
     if (Util_i2cTransfer(&transaction)) {
         Log_info0("I2C transfer successful");
+        ret = (status_t)data[0];
         for (int i = 0; i < num_bytes; i++) {
-            Log_info1("%d", data[i]);
+            Log_info1("%d", data[i+1]);
         }
-        ret = (status_t)data[num_bytes];
     }
     else {
         Log_error0("I2C transfer failed");
@@ -576,8 +576,8 @@ static status_t Max32664_readByte(uint8_t family, uint8_t index, uint8_t *data)
 
     if (Util_i2cTransfer(&transaction)) {
         Log_info0("I2C transfer successful");
-        (*data) = rxBuffer[0];
-        ret = (status_t)rxBuffer[1];
+        ret = (status_t)rxBuffer[0];
+        (*data) = rxBuffer[1];
         Log_info2("data=%d, ret=%d", (*data), ret);
     }
     else {
