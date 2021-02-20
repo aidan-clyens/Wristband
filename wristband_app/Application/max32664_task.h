@@ -25,12 +25,29 @@ typedef struct {
     uint8_t scdState;
 } heartrate_data_t;
 
+// Status Byte Value
+typedef enum {
+  STATUS_SUCCESS = 0x00,
+  STATUS_ILLEGAL_FAMILY = 0x01,
+  STATUS_NOT_IMPLEMENTED = 0x02,
+  STATUS_INCORRECT_NUM_BYTES = 0x03,
+  STATUS_ILLEGAL_CONFIG = 0x04,
+  STATUS_INCORRECT_MODE = 0x05,
+  STATUS_ERROR_FLASHING = 0x80,
+  STATUS_CHECKSUM_ERROR = 0x81,
+  STATUS_AUTH_ERROR = 0x82,
+  STATUS_APPLICATION_INVALID = 0x83,
+  STATUS_DEVICE_BUSY = 0xFE,
+  STATUS_UNKNOWN_ERROR = 0xFF
+} max32664_status_t;
+
 /*********************************************************************
  * FUNCTIONS
  */
 // MAX32664 commands
 extern void Max32664_initApplicationMode();
 extern void Max32664_initHeartRateAlgorithm();
+extern max32664_status_t Max32664_readFifoNumSamples(uint8_t *num_samples);
 extern void Max32664_readHeartRate(heartrate_data_t *data);
 
 
