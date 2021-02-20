@@ -126,9 +126,9 @@ void max32664::addSampleToFifoNormalReport() {
         return;
     }
 
-    uint16_t heart_rate = 120;
+    uint16_t heart_rate = 120 * 10; // Heart rate is x10
     uint8_t heart_rate_confidence = 90;
-    uint16_t spo2 = 50;
+    uint16_t spo2 = 50 * 10;    // SpO2 is x10
     uint8_t spo2_confidence = 98;
     scd_state_t scd_state = SCD_ON_SKIN;
     uint8_t spo2_quality = 0;  // Good signal quality
@@ -157,10 +157,6 @@ void max32664::addSampleToFifoNormalReport() {
        0,  // SpO2 state
        (uint8_t)scd_state // SCD state
      };
-    // uint8_t report[REPORT_ALGORITHM_NORMAL_SIZE];
-    // for (int i = 0; i < REPORT_ALGORITHM_NORMAL_SIZE; i++) {
-    //     report[i] = i;
-    // }
 
     // Add report to FIFO
     for (int i = 0; i < REPORT_ALGORITHM_NORMAL_SIZE; i++) {

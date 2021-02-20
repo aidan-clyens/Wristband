@@ -178,7 +178,6 @@ static void Sensors_init(void) {
 static void Sensors_taskFxn(UArg a0, UArg a1) {
     Sensors_init();
 
-    uint8_t num_samples;
     int num_reports;
     heartrate_data_t reports[32];
 
@@ -200,7 +199,13 @@ static void Sensors_taskFxn(UArg a0, UArg a1) {
             // Read report from MAX32664
             Max32664_readHeartRate(reports, &num_reports);
             Log_info1("Read %d reports", num_reports);
-            Log_info4("HR: %d, HR confidence: %d, SpO2: %d, SpO2 confidence: %d", reports[0].heartRate, reports[0].heartRateConfidence, reports[0].spO2, reports[0].spO2Confidence);
+            for (int i = 0; i < num_reports; i++) {
+                Log_info2("HR: %d, HR confidence: %d", reports[i].heartRate, reports[i].heartRateConfidence);
+                Log_info2("SpO2: %d, SpO2 confidence: %d", reports[i].spO2, reports[i].spO2Confidence);
+                Log_info1("SCD state: %d", reports[i].scdState);
+
+                // TODO: Queue report to be processed
+            }
 
             readHeartRateFlag = false;
         }

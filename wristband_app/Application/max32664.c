@@ -243,6 +243,8 @@ void Max32664_readHeartRate(heartrate_data_t reports[], int *num_reports)
     max32664_status_t ret;
     uint8_t num_samples;
 
+    (*num_reports) = 0;
+
     // Check sensor status before reading FIFO data
     uint8_t sensor_status;
     ret = Max32664_readSensorHubStatus(&sensor_status);
@@ -277,6 +279,10 @@ void Max32664_readHeartRate(heartrate_data_t reports[], int *num_reports)
         heartrate_data.spO2 |= reportBuffer[index + 12];     // LSB
         heartrate_data.spO2Confidence = reportBuffer[index + 10];
         heartrate_data.scdState = reportBuffer[index + 19];
+
+        // Heart rate and SpO2 are multiplied x10
+        heartrate_data.heartRate /= 10;
+        heartrate_data.spO2 /= 10;
 
         index += (MAX32664_NORMAL_REPORT_ALGORITHM_ONLY_SIZE + 1);
 
