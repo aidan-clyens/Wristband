@@ -148,7 +148,7 @@ static void Sensors_init(void) {
     heartRateReadClockHandle = Util_constructClock(
             &heartRateReadClock,
             Sensors_heartRateReadSwiFxn,
-            SENSORS_ACCELEROMETER_POLLING_PERIOD_MS,
+            SENSORS_HEART_RATE_POLLING_PERIOD_MS,
             SENSORS_HEART_RATE_POLLING_PERIOD_MS,
             0,
             NULL
