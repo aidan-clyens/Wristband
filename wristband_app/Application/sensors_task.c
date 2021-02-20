@@ -25,8 +25,8 @@
 #include <util.h>
 
 #include <sensors_task.h>
-#include <max32664_task.h>
 #include <i2c_util.h>
+#include <max32664.h>
 
 /*********************************************************************
  * CONSTANTS

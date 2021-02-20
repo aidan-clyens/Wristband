@@ -23,10 +23,10 @@
 #include <Board.h>
 
 #include <icall.h>
-#include <max32664_task.h>
 #include <project_zero.h>
 #include <util.h>
 #include <i2c_util.h>
+#include <max32664.h>
 
 #include <services/emergency_alert_service.h>
 

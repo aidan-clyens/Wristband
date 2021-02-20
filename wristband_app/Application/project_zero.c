@@ -82,7 +82,7 @@
 #include <Board.h>
 
 #include <project_zero.h>
-#include <max32664_task.h>
+#include <max32664.h>
 #include <util.h>
 
 /*********************************************************************

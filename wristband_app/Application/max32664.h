@@ -5,8 +5,8 @@
  *      Author: Aidan Clyens
  */
 
-#ifndef APPLICATION_MAX32664_TASK_H_
-#define APPLICATION_MAX32664_TASK_H_
+#ifndef APPLICATION_MAX32664_H_
+#define APPLICATION_MAX32664_H_
 
 #ifdef __cplusplus
 extern "C"
@@ -60,4 +60,4 @@ extern void Max32664_readHeartRate(heartrate_data_t reports[], int *num_reports)
 }
 #endif
 
-#endif /* APPLICATION_MAX32664_TASK_H_ */
+#endif /* APPLICATION_MAX32664_H_ */
