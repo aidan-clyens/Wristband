@@ -93,7 +93,7 @@ void max32664::runSensorHub() {
                 if (m_current_millis - m_prev_millis > SAMPLE_PERIOD_MS) {
                     // Add a sample report to the FIFO
                     // Mode 1: Normal Report
-                    // if (whrm_wspo2_mode) addSampleToFifoNormalReport();
+                    if (m_whrm_wspo2_mode) addSampleToFifoNormalReport();
                     Serial.println("Add report");
                     m_prev_millis = m_current_millis;
                 }
@@ -113,6 +113,69 @@ void max32664::runSensorHub() {
 bool max32664::checkResetPinAsserted() const {
     int reset_pin = digitalRead(RESET);
     return (m_sensor_mode != SENSOR_MODE_NONE && reset_pin == LOW);
+}
+
+/*********************************************************************
+ * @fn      addSampleToFifoNormalReport
+ *
+ * @brief   Add WHRM + WSpO2 algorithm data to FIFO. Create Normal Report.
+ */
+void max32664::addSampleToFifoNormalReport() {
+    if (m_output_fifo.size() == FIFO_DEPTH) {
+        // TODO: Update FIFO overflow flag
+        return;
+    }
+
+    uint16_t heart_rate = 120;
+    uint8_t heart_rate_confidence = 90;
+    uint16_t spo2 = 50;
+    uint8_t spo2_confidence = 98;
+    scd_state_t scd_state = SCD_ON_SKIN;
+    uint8_t spo2_quality = 0;  // Good signal quality
+    uint8_t spo2_motion = 0; // No motion
+
+    // Generate report
+    uint8_t report[] = {
+       0,  // Current operation mode
+       (uint8_t)((heart_rate >> 8) & 0xFF),  // HR MSB
+       (uint8_t)(heart_rate & 0xFF), // HR LSB
+       heart_rate_confidence, // HR confidence
+       0,  // RR MSB
+       0,  // RR LSB
+       0,  // RR confidence
+       0,  // Activity class
+       0,  // R MSB
+       0,  // R LSB
+       spo2_confidence,  // SpO2 confidence
+       (uint8_t)((spo2 >> 8) & 0xFF),  // SpO2 MSB
+       (uint8_t)(spo2 & 0xFF), // SpO2 LSB
+       0,  // SpO2 % complete
+       spo2_quality,  // SpO2 low signal quality flag
+       spo2_motion,  // SpO2 motion flag
+       0,  // SpO2 low PI flag
+       0,  // SpO2 unreliable R flag
+       0,  // SpO2 state
+       (uint8_t)scd_state // SCD state
+     };
+    // uint8_t report[REPORT_ALGORITHM_NORMAL_SIZE];
+    // for (int i = 0; i < REPORT_ALGORITHM_NORMAL_SIZE; i++) {
+    //     report[i] = i;
+    // }
+
+    // Add report to FIFO
+    for (int i = 0; i < REPORT_ALGORITHM_NORMAL_SIZE; i++) {
+        if (m_output_fifo.size() == FIFO_DEPTH) {
+            // TODO: Update FIFO overflow flag
+            Serial.println("Output FIFO full");
+            return;
+        }
+
+        m_output_fifo.push(report[i]);
+    }
+
+    // TODO: If number of reports exceeds threshold, set flag
+
+    Serial.println("Added WHRM + WSpO2 report to Output FIFO");
 }
 
 /*********************************************************************
@@ -204,23 +267,22 @@ void max32664::requestEvent() {
             switch (index) {
                 case NUM_FIFO_SAMPLES:
                     data_buffer[0] = SUCCESS;
-                    data_buffer[1] = (uint8_t)(m_output_fifo.size() / REPORT_ALGORITHM_NORMAL_SIZE);
+                    data_buffer[1] = (uint8_t)(m_output_fifo.size());
                     Wire.write(data_buffer, 2);
-                    num_samples_read = m_output_fifo.size() / REPORT_ALGORITHM_NORMAL_SIZE;
+                    num_samples_read = m_output_fifo.size();
                     Serial.print("Read number of FIFO samples: ");
-                    Serial.println(m_output_fifo.size() / REPORT_ALGORITHM_NORMAL_SIZE);
+                    Serial.println(m_output_fifo.size());
                     break;
                 case READ_FIFO_DATA: {
                     Serial.println("Reading data from FIFO:");
-                    count = num_samples_read * REPORT_ALGORITHM_NORMAL_SIZE;
-                    uint8_t report_data[count+1];
+                    uint8_t report_data[num_samples_read+1];
                     report_data[0] = SUCCESS;
-                    for (int i = 0; i < count; i++) {
+                    for (int i = 0; i < num_samples_read; i++) {
                         report_data[i+1] = m_output_fifo.front();
                         m_output_fifo.pop();
                     }
 
-                    Wire.write(report_data, count+1);
+                    Wire.write(report_data, num_samples_read + 1);
                     break;
                 }
                 default:

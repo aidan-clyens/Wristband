@@ -16,7 +16,7 @@
 #define ADDRESS                     0xAA
 
 #define FIFO_DEPTH                  128
-#define SAMPLE_PERIOD_MS            2*1000  // TODO: Change to 25 Hz
+#define SAMPLE_PERIOD_MS            4*1000  // TODO: Change to 25 Hz
 
 #define REPORT_ALGORITHM_NORMAL_SIZE    20
 
@@ -77,6 +77,14 @@ typedef enum {
     UNKNOWN_ERROR = 0xFF
 } status_t;
 
+// SCD State
+typedef enum {
+    SCD_UNDETECTED,
+    SCD_OFF_SKIN,
+    SCD_ON_SUBJECT,
+    SCD_ON_SKIN
+} scd_state_t;
+
 /*****************************************************
  *  Global Variables
  * ***************************************************/
@@ -99,6 +107,8 @@ class max32664 {
         void runSensorHub();
 
         bool checkResetPinAsserted() const;
+
+        void addSampleToFifoNormalReport();
 
         // Static functions
         static void receiveEvent(int num);
