@@ -10,10 +10,13 @@
  */
 #include <xdc/std.h>
 #include <xdc/runtime/Error.h>
+
 #include <ti/sysbios/BIOS.h>
 #include <ti/sysbios/knl/Semaphore.h>
+#include <ti/sysbios/knl/Task.h>
+#include <ti/sysbios/knl/Clock.h>
+
 #include <ti/drivers/GPIO.h>
-#include <ti/drivers/I2C.h>
 
 #include <uartlog/UartLog.h>
 
@@ -23,6 +26,7 @@
 #include <max32664_task.h>
 #include <project_zero.h>
 #include <util.h>
+#include <i2c_util.h>
 
 #include <services/emergency_alert_service.h>
 
@@ -106,15 +110,6 @@ typedef enum {
   STATUS_UNKNOWN_ERROR = 0xFF
 } status_t;
 
-// Heart Rate Data
-typedef struct {
-    uint16_t heartRate;
-    uint8_t heartRateConfidence;
-    uint16_t spO2;
-    uint8_t spO2Confidence;
-    uint8_t scdState;
-} heartrate_data_t;
-
 
 /*********************************************************************
  * GLOBAL VARIABLES
@@ -125,24 +120,6 @@ bool heartRateAlgorithmInitialized = false;
 /*********************************************************************
  * LOCAL VARIABLES
  */
-// Entity ID globally used to check for source and/or destination of messages
-static ICall_EntityID selfEntity;
-
-// Event globally used to post local events and pend on system and
-// local events.
-static ICall_SyncHandle syncEvent;
-
-// Clocks
-static Clock_Struct heartrateClock;
-static Clock_Handle heartrateClockHandle;
-
-// Semaphores
-static Semaphore_Handle heartRateSemaphore;
-
-// Queue object used for app messages
-static Queue_Struct appMsgQueue;
-static Queue_Handle appMsgQueueHandle;
-
 // Bio Sensor Hub data buffer
 static uint8_t reportBuffer[MAX32664_MAX_NUM_SAMPLES * MAX32664_NORMAL_REPORT_ALGORITHM_ONLY_SIZE];
 
@@ -156,16 +133,7 @@ static I2C_Transaction transaction;
  * LOCAL FUNCTIONS
  */
 // Task functions
-static void Max32664_init(void);
 static void Max32664_taskFxn(UArg a0, UArg a1);
-
-static void Max32664_heartRateSwiFxn(UArg a0);
-static void Max32664_processApplicationMessage(max32664_msg_t *pMsg);
-
-// MAX32664 commands
-static void Max32664_initApplicationMode();
-static void Max32664_initHeartRateAlgorithm();
-static void Max32664_readHeartRate(heartrate_data_t *data);
 
 static status_t Max32664_readSensorHubStatus(uint8_t *status);
 static status_t Max32664_setOutputMode(uint8_t output_mode);
@@ -185,47 +153,6 @@ static status_t Max32664_writeByte(uint8_t family, uint8_t index, uint8_t data, 
 /*********************************************************************
  * PUBLIC FUNCTIONS
  */
-
-/*********************************************************************
- * @fn      Max32664_init
- *
- * @brief   Initialization for Max32664 task.
- */
-static void Max32664_init(void)
-{
-    // Register application with ICall
-    ICall_registerApp(&selfEntity, &syncEvent);
-
-    // Initialize GPIO pins
-    GPIO_setConfig(Board_GPIO_MAX32664_MFIO, GPIO_CFG_OUT_STD | GPIO_CFG_OUT_LOW);
-    GPIO_setConfig(Board_GPIO_MAX32664_RESET, GPIO_CFG_OUT_STD | GPIO_CFG_OUT_HIGH);
-
-    // Set I2C slave address
-    transaction.slaveAddress = MAX32664_ADDRESS;
-
-    // Create semaphores
-    Semaphore_Params semParamsHeartRate;
-    Semaphore_Params_init(&semParamsHeartRate);
-    heartRateSemaphore = Semaphore_create(0, &semParamsHeartRate, Error_IGNORE);
-
-    // Create message queue
-    Queue_construct(&appMsgQueue, NULL);
-    appMsgQueueHandle = Queue_handle(&appMsgQueue);
-
-    // Create clocks
-    heartrateClockHandle = Util_constructClock(&heartrateClock,
-                                               Max32664_heartRateSwiFxn,
-                                               MAX32664_REPORT_PERIOD_MS,
-                                               MAX32664_REPORT_PERIOD_MS,
-                                               0,
-                                               NULL
-                                               );
-
-    operatingMode = RESET_MODE;
-
-    // Initialize MAX32664 sensor
-    Max32664_enqueueMsg(MAX32664_INIT_HEARTRATE_MODE, NULL);
-}
 
 /*********************************************************************
  * @fn      Max32664_taskFxn
@@ -254,7 +181,6 @@ static void Max32664_taskFxn(UArg a0, UArg a1)
     {
         switch (operatingMode) {
             case HEARTRATE_MODE: {
-                Semaphore_pend(heartRateSemaphore, BIOS_WAIT_FOREVER);
                 if (heartRateAlgorithmInitialized) {
                     // Read heart rate from MAX32664
                     Max32664_readHeartRate(&heartRateData);
@@ -289,12 +215,12 @@ static void Max32664_taskFxn(UArg a0, UArg a1)
                     if (heartRateData.heartRate > MAX32664_HIGH_HEARTRATE) {
                         uint8_t alert_type[1];
                         alert_type[0] = ALERT_HIGH_HEARTRATE;
-                        Max32664_enqueueMsg(MAX32664_TRIGGER_ALERT, alert_type);
+//                        Max32664_enqueueMsg(MAX32664_TRIGGER_ALERT, alert_type);
                     }
                     else if (heartRateData.heartRate < MAX32664_LOW_HEARTRATE) {
                         uint8_t alert_type[1];
                         alert_type[0] = ALERT_LOW_HEARTRATE;
-                        Max32664_enqueueMsg(MAX32664_TRIGGER_ALERT, alert_type);
+//                        Max32664_enqueueMsg(MAX32664_TRIGGER_ALERT, alert_type);
                     }
                 }
 
@@ -303,66 +229,6 @@ static void Max32664_taskFxn(UArg a0, UArg a1)
             default:
                 break;
         }
-
-        // Process messages sent from another task or another context.
-        while(!Queue_empty(appMsgQueueHandle)) {
-            max32664_msg_t *pMsg = (max32664_msg_t *)Util_dequeueMsg(appMsgQueueHandle);
-            if(pMsg) {
-                Max32664_processApplicationMessage(pMsg);
-                // Free the received message.
-                ICall_free(pMsg);
-            }
-        }
-    }
-}
-
-/*********************************************************************
- * @fn      Max32663_processApplicationMessage
- *
- * @brief   Process application messages.
- *
- * @param   pMsg  Pointer to the message of type max32664_msg_t.
- */
-static void Max32664_processApplicationMessage(max32664_msg_t *pMsg) {
-    switch(pMsg->event) {
-        case MAX32664_INIT_HEARTRATE_MODE: {
-            Log_info0("Initializing Heart Rate Operating Mode");
-            Max32664_initApplicationMode();
-
-            // Read test
-            uint8_t sensor_status;
-            status_t ret = Max32664_readSensorHubStatus(&sensor_status);
-            if (ret != STATUS_SUCCESS || sensor_status == 1) {
-                Log_error0("MAX32644 not connected");
-            }
-            else
-            {
-                Log_info0("MAX32664 connected successfully");
-            }
-
-            Max32664_initHeartRateAlgorithm();
-
-            Util_startClock(&heartrateClock);
-
-            operatingMode = HEARTRATE_MODE;
-        }
-            break;
-        case MAX32664_INIT_ECG_MODE:
-            Util_stopClock(&heartrateClock);
-            operatingMode = ECG_MODE;
-            break;
-        case MAX32664_TRIGGER_ALERT: {
-            uint8_t *alert_type = (uint8_t*)pMsg->pData;
-
-            ProjectZero_triggerEmergencyAlert(*alert_type);
-        }
-            break;
-        default:
-            break;
-    }
-
-    if(pMsg->pData != NULL) {
-        ICall_free(pMsg->pData);
     }
 }
 
@@ -371,7 +237,7 @@ static void Max32664_processApplicationMessage(max32664_msg_t *pMsg) {
  *
  * @brief   Initialize the Biometric Sensor Hub in Application Mode.
  */
-static void Max32664_initApplicationMode()
+void Max32664_initApplicationMode()
 {
     GPIO_write(Board_GPIO_MAX32664_RESET, GPIO_CFG_OUT_LOW);
     GPIO_write(Board_GPIO_MAX32664_MFIO, GPIO_CFG_OUT_HIGH);
@@ -393,7 +259,7 @@ static void Max32664_initApplicationMode()
  *
  * @brief   Initialize the Heart Rate algorithm on the Biometric Sensor Hub.
  */
-static void Max32664_initHeartRateAlgorithm()
+void Max32664_initHeartRateAlgorithm()
 {
     uint8_t enable;
     uint8_t mode;
@@ -460,7 +326,7 @@ static void Max32664_initHeartRateAlgorithm()
  *
  * @param   Heart rate, SpO2, confidence and status values
  */
-static void Max32664_readHeartRate(heartrate_data_t *data)
+void Max32664_readHeartRate(heartrate_data_t *data)
 {
     status_t ret;
 
@@ -717,40 +583,4 @@ static status_t Max32664_readByte(uint8_t family, uint8_t index, uint8_t *data)
     }
 
     return ret;
-}
-
-
-/*********************************************************************
- * @fn      Max32664_heartRateSwiFxn
- *
- * @brief   Callback for Heart Rate value update.
- *
- * @param   a0 - not used.
- */
-static void Max32664_heartRateSwiFxn(UArg a0) {
-    Semaphore_post(heartRateSemaphore);
-}
-
-/*********************************************************************
- * @fn     Max32664_enqueueMsg
- *
- * @brief  Utility function that sends the event and data to the application.
- *         Handled in the task loop.
- *
- * @param  event    Event type
- * @param  pData    Pointer to message data
- */
-bool Max32664_enqueueMsg(max32664_event_t event, void *pData) {
-    uint8_t success;
-    max32664_msg_t *pMsg = ICall_malloc(sizeof(max32664_msg_t));
-
-    if(pMsg) {
-        pMsg->event = event;
-        pMsg->pData = pData;
-
-        success = Util_enqueueMsg(appMsgQueueHandle, syncEvent, (uint8_t *)pMsg);
-        return success;
-    }
-
-    return false;
 }

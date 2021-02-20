@@ -16,24 +16,22 @@ extern "C"
 /*********************************************************************
  * TYPEDEFS
  */
-// Application messages
+// Heart Rate Data
 typedef struct {
-    uint8_t event;
-    void    *pData;
-} max32664_msg_t;
-
-// Event types
-typedef enum {
-    MAX32664_INIT_HEARTRATE_MODE,
-    MAX32664_INIT_ECG_MODE,
-    MAX32664_TRIGGER_ALERT
-} max32664_event_t;
+    uint16_t heartRate;
+    uint8_t heartRateConfidence;
+    uint16_t spO2;
+    uint8_t spO2Confidence;
+    uint8_t scdState;
+} heartrate_data_t;
 
 /*********************************************************************
  * FUNCTIONS
  */
-
-extern bool Max32664_enqueueMsg(max32664_event_t event, void *pData);
+// MAX32664 commands
+extern void Max32664_initApplicationMode();
+extern void Max32664_initHeartRateAlgorithm();
+extern void Max32664_readHeartRate(heartrate_data_t *data);
 
 
 #ifdef __cplusplus

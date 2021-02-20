@@ -25,6 +25,7 @@
 #include <util.h>
 
 #include <sensors_task.h>
+#include <max32664_task.h>
 #include <i2c_util.h>
 
 /*********************************************************************
@@ -138,6 +139,9 @@ static void Sensors_init(void) {
     );
 
     readAccelerometerFlag = false;
+
+    // Start MAX32664 in Application Mode
+    Max32664_initApplicationMode();
 
     // Start clocks
     Util_startClock(&accelerometerReadClock);
