@@ -36,7 +36,6 @@
  */
 #define MAX32664_REPORT_PERIOD_MS           2*40  // Change to 2*40 ms
 
-#define MAX32664_NORMAL_REPORT_ALGORITHM_ONLY_SIZE      20
 #define MAX32664_MAX_NUM_SAMPLES            4
 
 // Heart rate constants
@@ -104,7 +103,7 @@ bool heartRateAlgorithmInitialized = false;
  * LOCAL VARIABLES
  */
 // Bio Sensor Hub data buffer
-static uint8_t reportBuffer[MAX32664_MAX_NUM_SAMPLES * MAX32664_NORMAL_REPORT_ALGORITHM_ONLY_SIZE];
+static uint8_t reportBuffer[MAX32664_MAX_NUM_SAMPLES * (MAX32664_NORMAL_REPORT_ALGORITHM_ONLY_SIZE + 1)];
 
 static max32664_operating_mode_t operatingMode;
 
@@ -115,9 +114,6 @@ static I2C_Transaction transaction;
 /*********************************************************************
  * LOCAL FUNCTIONS
  */
-// Task functions
-static void Max32664_taskFxn(UArg a0, UArg a1);
-
 static max32664_status_t Max32664_readSensorHubStatus(uint8_t *status);
 static max32664_status_t Max32664_setOutputMode(uint8_t output_mode);
 static max32664_status_t Max32664_readOutputMode(uint8_t *data);
@@ -135,84 +131,6 @@ static max32664_status_t Max32664_writeByte(uint8_t family, uint8_t index, uint8
 /*********************************************************************
  * PUBLIC FUNCTIONS
  */
-
-/*********************************************************************
- * @fn      Max32664_taskFxn
- *
- * @brief   Application task entry point for the Max32664 Biometric Sensor Hub.
- *
- * @param   a0, a1 - not used.
- */
-static void Max32664_taskFxn(UArg a0, UArg a1)
-{
-    // Application initialization
-    Max32664_init();
-
-    heartrate_data_t heartRateData;
-    heartRateData.heartRate = 0;
-    heartRateData.heartRateConfidence = 0;
-    heartRateData.spO2 = 0;
-    heartRateData.spO2Confidence = 0;
-    heartRateData.scdState = 0;
-
-    uint8_t byte_buffer[1];
-    uint8_t word_buffer[2];
-
-    // Application main loop
-    for(;;)
-    {
-        switch (operatingMode) {
-            case HEARTRATE_MODE: {
-                if (heartRateAlgorithmInitialized) {
-                    // Read heart rate from MAX32664
-                    Max32664_readHeartRate(&heartRateData);
-
-                    // Pass messages containing heart rate value to the BLE task
-                    word_buffer[0] = heartRateData.heartRate & 0xFF;
-                    word_buffer[1] = heartRateData.heartRate >> 8;
-                    ProjectZero_valueChangeHandler(DATA_HEARTRATE, word_buffer);
-
-                    byte_buffer[0] = heartRateData.heartRateConfidence;
-                    ProjectZero_valueChangeHandler(DATA_HEARTRATE_CONFIDENCE, byte_buffer);
-
-                    word_buffer[0] = heartRateData.spO2 & 0xFF;
-                    word_buffer[1] = heartRateData.spO2 >> 8;
-                    ProjectZero_valueChangeHandler(DATA_SPO2, word_buffer);
-
-                    byte_buffer[0] = heartRateData.spO2Confidence;
-                    ProjectZero_valueChangeHandler(DATA_SPO2_CONFIDENCE, byte_buffer);
-
-                    byte_buffer[0] = heartRateData.scdState;
-                    ProjectZero_valueChangeHandler(DATA_SCD_STATE, byte_buffer);
-
-                    Log_info5("Read: Heart Rate: %d - Heart Rate Confidence: %d - SpO2: %d - SpO2 Confidence: %d - SCD state: %d",
-                              heartRateData.heartRate,
-                              heartRateData.heartRateConfidence,
-                              heartRateData.spO2,
-                              heartRateData.spO2Confidence,
-                              heartRateData.scdState
-                    );
-
-                    // Check for low or high heartrate
-                    if (heartRateData.heartRate > MAX32664_HIGH_HEARTRATE) {
-                        uint8_t alert_type[1];
-                        alert_type[0] = ALERT_HIGH_HEARTRATE;
-//                        Max32664_enqueueMsg(MAX32664_TRIGGER_ALERT, alert_type);
-                    }
-                    else if (heartRateData.heartRate < MAX32664_LOW_HEARTRATE) {
-                        uint8_t alert_type[1];
-                        alert_type[0] = ALERT_LOW_HEARTRATE;
-//                        Max32664_enqueueMsg(MAX32664_TRIGGER_ALERT, alert_type);
-                    }
-                }
-
-                break;
-            }
-            default:
-                break;
-        }
-    }
-}
 
 /*********************************************************************
  * @fn      Max32664_initApplicationMode
@@ -320,16 +238,10 @@ max32664_status_t Max32664_readFifoNumSamples(uint8_t *num_samples)
  *
  * @param   Heart rate, SpO2, confidence and status values
  */
-void Max32664_readHeartRate(heartrate_data_t *data)
+void Max32664_readHeartRate(heartrate_data_t reports[], int *num_reports)
 {
     max32664_status_t ret;
-
-    // Initialize values
-    data->heartRate = 0;
-    data->heartRateConfidence = 0;
-    data->spO2 = 0;
-    data->spO2Confidence = 0;
-    data->scdState = 0;
+    uint8_t num_samples;
 
     // Check sensor status before reading FIFO data
     uint8_t sensor_status;
@@ -341,35 +253,37 @@ void Max32664_readHeartRate(heartrate_data_t *data)
     Log_info0("Reading Heart Rate data from Sensor Hub");
     // TODO: Check if bit 3 (FIFO filled to threshold) is set
 
-    // Get the number of samples in the FIFO
-    uint8_t num_samples = 0;
-    ret = Max32664_readFifoNumSamples(&num_samples);
-    if (ret != STATUS_SUCCESS) {
-        Log_error1("Error reading number of FIFO samples: %d", ret);
+    if (Max32664_readFifoNumSamples(&num_samples) != STATUS_SUCCESS) {
+        Log_error0("Error getting number of FIFO samples");
         return;
     }
-    Log_info1("Reading %d samples from FIFO", num_samples);
+    Log_info1("Reading %d samples", num_samples);
 
-    uint8_t num_bytes = num_samples * MAX32664_NORMAL_REPORT_ALGORITHM_ONLY_SIZE;
+    if (Max32664_readFifoData(reportBuffer, num_samples) != STATUS_SUCCESS) {
+        Log_error0("Error reading FIFO samples");
+        return;
+    }
+    Log_info1("Read %d FIFO samples", num_samples);
 
-    // TODO: Read the data stored in the FIFO
-//    uint8_t buffer[5];
-//    ret = Max32664_readFifoData(reportBuffer, num_bytes);
-//    if (ret != STATUS_SUCCESS) {
-//        Log_error1("Error reading report from FIFO: %d", ret);
-//        return;
-//    }
-//    Log_info1("Read %d samples from FIFO", num_samples);
+    int number_reports = num_samples / MAX32664_NORMAL_REPORT_ALGORITHM_ONLY_SIZE;
+    int index = 1;
+    int reportIndex = 0;
+    for (int i = 0; i < number_reports; i++) {
+        heartrate_data_t heartrate_data;
+        heartrate_data.heartRate = reportBuffer[index + 1] << 8; // MSB
+        heartrate_data.heartRate |= reportBuffer[index + 2]; // LSB
+        heartrate_data.heartRateConfidence = reportBuffer[index + 3];
+        heartrate_data.spO2 = reportBuffer[index + 11] << 8;     // MSB
+        heartrate_data.spO2 |= reportBuffer[index + 12];     // LSB
+        heartrate_data.spO2Confidence = reportBuffer[index + 10];
+        heartrate_data.scdState = reportBuffer[index + 19];
 
-//    for (int i = 0; i < num_bytes; i++) {
-//        if (reportBuffer[i] != 0) Log_info1("%d", reportBuffer[i]);
-//    }
+        index += (MAX32664_NORMAL_REPORT_ALGORITHM_ONLY_SIZE + 1);
 
-    data->heartRate = 120;
-    data->heartRateConfidence = 85;
-    data->spO2 = 200;
-    data->spO2Confidence = 90;
-    data->scdState = 1;
+        reports[reportIndex] = heartrate_data;
+    }
+
+    (*num_reports) = number_reports;
 }
 
 
@@ -480,14 +394,10 @@ static max32664_status_t Max32664_readFifoData(uint8_t *data, int num_bytes)
     if (Util_i2cTransfer(&transaction)) {
         Log_info0("I2C transfer successful");
         ret = (max32664_status_t)data[0];
-        for (int i = 0; i < num_bytes; i++) {
-            Log_info1("%d", data[i+1]);
-        }
     }
     else {
         Log_error0("I2C transfer failed");
     }
-
 
     return ret;
 }

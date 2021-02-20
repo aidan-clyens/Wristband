@@ -14,6 +14,11 @@ extern "C"
 #endif
 
 /*********************************************************************
+ * CONSTANTS
+ */
+#define MAX32664_NORMAL_REPORT_ALGORITHM_ONLY_SIZE      20
+
+/*********************************************************************
  * TYPEDEFS
  */
 // Heart Rate Data
@@ -48,7 +53,7 @@ typedef enum {
 extern void Max32664_initApplicationMode();
 extern void Max32664_initHeartRateAlgorithm();
 extern max32664_status_t Max32664_readFifoNumSamples(uint8_t *num_samples);
-extern void Max32664_readHeartRate(heartrate_data_t *data);
+extern void Max32664_readHeartRate(heartrate_data_t reports[], int *num_reports);
 
 
 #ifdef __cplusplus

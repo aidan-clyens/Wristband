@@ -179,6 +179,8 @@ static void Sensors_taskFxn(UArg a0, UArg a1) {
     Sensors_init();
 
     uint8_t num_samples;
+    int num_reports;
+    heartrate_data_t reports[32];
 
     for (;;) {
         Semaphore_pend(swiSemaphore, BIOS_WAIT_FOREVER);
@@ -196,8 +198,9 @@ static void Sensors_taskFxn(UArg a0, UArg a1) {
             Log_info0("Read Heart Rate");
 
             // Read report from MAX32664
-            Max32664_readFifoNumSamples(&num_samples);
-            Log_info1("Num samples: %d", num_samples);
+            Max32664_readHeartRate(reports, &num_reports);
+            Log_info1("Read %d reports", num_reports);
+            Log_info4("HR: %d, HR confidence: %d, SpO2: %d, SpO2 confidence: %d", reports[0].heartRate, reports[0].heartRateConfidence, reports[0].spO2, reports[0].spO2Confidence);
 
             readHeartRateFlag = false;
         }
