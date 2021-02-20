@@ -489,6 +489,7 @@ static status_t Max32664_readFifoData(uint8_t *data, int num_bytes)
     txBuffer[0] = MAX32664_READ_OUTPUT_FIFO;
     txBuffer[1] = MAX32664_READ_FIFO_DATA;
 
+    transaction.slaveAddress = MAX32664_ADDRESS;
     transaction.writeBuf   = txBuffer;
     transaction.writeCount = 2;
     transaction.readBuf    = data;
@@ -531,6 +532,7 @@ static status_t Max32664_writeByte(uint8_t family, uint8_t index, uint8_t data, 
     txBuffer[1] = index;
     txBuffer[2] = data;
 
+    transaction.slaveAddress = MAX32664_ADDRESS;
     transaction.writeBuf   = txBuffer;
     transaction.writeCount = 3;
     transaction.readBuf    = rxBuffer;

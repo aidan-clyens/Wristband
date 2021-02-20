@@ -143,6 +143,9 @@ static void Sensors_init(void) {
     // Start MAX32664 in Application Mode
     Max32664_initApplicationMode();
 
+    // Start MAX32664 Heart Rate Algorithm
+    Max32664_initHeartRateAlgorithm();
+
     // Start clocks
     Util_startClock(&accelerometerReadClock);
 
