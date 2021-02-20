@@ -294,7 +294,7 @@ void reset() {
  * @brief   Add WHRM + WSpO2 algorithm data to FIFO. Create Normal Report.
  */
 void addSampleToFifoNormalReport() {
-  if (fifo.full()) {
+  if (fifo.size() == FIFO_DEPTH) {
     // TODO: Update FIFO overflow flag
     return;
   }
@@ -336,7 +336,7 @@ void addSampleToFifoNormalReport() {
 
   // Add report to FIFO
   for (int i = 0; i < REPORT_ALGORITHM_NORMAL_SIZE; i++) {
-    if (fifo.full()) {
+    if (fifo.size() == FIFO_DEPTH) {
       // TODO: Update FIFO overflow flag
       Serial.println("Output FIFO full");
       return;

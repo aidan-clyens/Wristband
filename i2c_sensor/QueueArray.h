@@ -12,11 +12,7 @@
 #ifndef QUEUE_ARRAY_H
 #define QUEUE_ARRAY_H
 
-#ifdef ARDUINO_H
 #include "Arduino.h"
-#else
-#include <iostream>
-#endif
 
 template <typename Type>
 class QueueArray {
@@ -124,7 +120,6 @@ Type QueueArray<Type>::back() const {
  */
 template <typename Type>
 void QueueArray<Type>::push(Type const &obj) {
-  if (queue_size == queue_capacity) return;
   //  Move back index forwards, accounting for array wraparound
   back_index = ++back_index % queue_capacity;
   queue[back_index] = obj;
@@ -171,20 +166,12 @@ void QueueArray<Type>::print() {
   int i = front_index;
 
   while (i != back_index) {
-    #ifdef ARDUINO_H
     Serial.print(queue[i]);
     Serial.print(" ");
-    #else
-    std::cout << queue[i] << " ";
-    #endif
 
     i = ++i % queue_capacity;
   }
-  #ifdef ARDUINO_H
   Serial.println(queue[back_index]);
-  #else
-  std::cout << queue[back_index] << std::endl;
-  #endif
 }
 
 #endif
