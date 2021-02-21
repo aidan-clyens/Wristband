@@ -16,12 +16,21 @@ extern "C"
 /*********************************************************************
  * TYPEDEFS
  */
-
+// Sensor Data
+typedef struct {
+    uint8_t x_L;
+    uint8_t x_H;
+    uint8_t y_L;
+    uint8_t y_H;
+    uint8_t z_L;
+    uint8_t z_H;
+} sensor_data_t;
 
 /*********************************************************************
  * FUNCTIONS
  */
-extern void Mis2dh_createTask(void);
+extern bool Mis2dh_init(void);
+extern bool Mis2dh_readSensorData(sensor_data_t *data);
 
 
 #ifdef __cplusplus

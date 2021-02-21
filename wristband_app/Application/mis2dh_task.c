@@ -9,14 +9,8 @@
  * INCLUDES
  */
 #include <xdc/std.h>
-#include <xdc/runtime/Error.h>
 
 #include <ti/drivers/I2C.h>
-
-#include <ti/sysbios/BIOS.h>
-#include <ti/sysbios/knl/Task.h>
-#include <ti/sysbios/knl/Clock.h>
-#include <ti/sysbios/knl/Semaphore.h>
 
 #include <uartlog/UartLog.h>
 
@@ -30,12 +24,6 @@
 /*********************************************************************
  * CONSTANTS
  */
-// Task
-#define MIS2DH_THREAD_STACK_SIZE        1024
-#define MIS2DH_TASK_PRIORITY            1
-
-#define MIS2DH_CLOCK_PERIOD_MS          5*1000
-
 // I2C
 #define MIS2DH_ADDRESS                  0x18
 
@@ -64,16 +52,6 @@
 /*********************************************************************
  * TYPEDEFS
  */
-// Sensor Data
-typedef struct {
-    uint8_t x_L;
-    uint8_t x_H;
-    uint8_t y_L;
-    uint8_t y_H;
-    uint8_t z_L;
-    uint8_t z_H;
-} sensor_data_t;
-
 // Data Rate
 typedef enum {
     DATARATE_POWER_DOWN = 0x00,
@@ -99,36 +77,16 @@ typedef enum {
 /*********************************************************************
  * GLOBAL VARIABLES
  */
-Task_Struct mis2dhTask;
-uint8_t mis2dhTaskStack[MIS2DH_THREAD_STACK_SIZE];
 
 /*********************************************************************
  * LOCAL VARIABLES
  */
-// Entity ID globally used to check for source and/or destination of messages
-static ICall_EntityID selfEntity;
-
-// Event globally used to post local events and pend on system and
-// local events.
-static ICall_SyncHandle syncEvent;
-
-// Clocks
-static Clock_Struct clock;
-static Clock_Handle clockHandle;
-
-// Semaphores
-static Semaphore_Handle semaphore;
-
 // I2C
 static I2C_Transaction transaction;
 
 /*********************************************************************
  * LOCAL FUNCTIONS
  */
-static void Mis2dh_init(void);
-static void Mis2dh_taskFxn(UArg a0, UArg a1);
-static void Mis2dh_clockSwiFxn(UArg a0);
-
 static bool Mis2dh_configureDataRate(data_rate_t dataRate);
 static bool Mis2dh_setLowPowerMode(bool enable);
 static bool Mis2dh_setFifoMode(fifo_mode_t fifoMode);
@@ -136,7 +94,6 @@ static bool Mis2dh_enableFifo(bool enable);
 static bool Mis2dh_isFifoFull(bool *full);
 static bool Mis2dh_isFifoEmpty(bool *empty);
 static bool Mis2dh_getNumUnreadSamples(int *num_samples);
-static bool Mis2dh_readSensorData(sensor_data_t *data);
 
 // I2C
 static bool Mis2dh_writeRegister(uint8_t regAddress, uint8_t data);
@@ -147,43 +104,18 @@ static bool Mis2dh_readRegister(uint8_t regAddress, uint8_t *data);
  */
 
 /*********************************************************************
- * @fn      Mis2dh_createTask
- *
- * @brief   Task creation function for the MIS2DH Accelerometer.
- */
-void Mis2dh_createTask(void) {
-    Task_Params taskParams;
-
-    // Configure task
-    Task_Params_init(&taskParams);
-    taskParams.stack = mis2dhTaskStack;
-    taskParams.stackSize = MIS2DH_THREAD_STACK_SIZE;
-    taskParams.priority = MIS2DH_TASK_PRIORITY;
-
-    Task_construct(&mis2dhTask, Mis2dh_taskFxn, &taskParams, Error_IGNORE);
-}
-
-/*********************************************************************
- * @fn      Mis2dh_inits
+ * @fn      Mis2dh_init
  *
  * @brief   Initialization for MIS2DH task.
  */
-static void Mis2dh_init(void) {
-    // Set I2C slave address
-    transaction.slaveAddress = MIS2DH_ADDRESS;
-
-    // Create semaphores
-    Semaphore_Params semParams;
-    Semaphore_Params_init(&semParams);
-    semaphore = Semaphore_create(0, &semParams, Error_IGNORE);
-
+bool Mis2dh_init(void) {
     // Set data rate
-    if (Mis2dh_configureDataRate(DATARATE_1HZ)) {
-        Log_info0("Set data rate to 1Hz");
+    if (Mis2dh_configureDataRate(DATARATE_25HZ)) {
+        Log_info0("Set data rate to 25Hz");
     }
     else {
-        Log_error0("Error setting data rate. Exiting");
-        Task_exit();
+        Log_error0("Error setting data rate");
+        return false;
     }
 
     // Enable low power mode
@@ -191,8 +123,8 @@ static void Mis2dh_init(void) {
         Log_info0("Enable Low Power Mode");
     }
     else {
-        Log_error0("Error enabling Low Power Mode. Exiting");
-        Task_exit();
+        Log_error0("Error enabling Low Power Mode");
+        return false;
     }
 
     // Configure FIFO mode
@@ -200,8 +132,8 @@ static void Mis2dh_init(void) {
         Log_info0("Set FIFO Mode to Stream");
     }
     else {
-        Log_error0("Error setting FIFO Mode. Exiting");
-        Task_exit();
+        Log_error0("Error setting FIFO Mode");
+        return false;
     }
 
     // Enable FIFO
@@ -209,70 +141,45 @@ static void Mis2dh_init(void) {
         Log_info0("Enabled FIFO");
     }
     else {
-        Log_error0("Error enabling FIFO. Exiting");
-        Task_exit();
+        Log_error0("Error enabling FIFO");
+        return false;
     }
 
-    // Create clocks
-    clockHandle = Util_constructClock(&clock,
-                                      Mis2dh_clockSwiFxn,
-                                      MIS2DH_CLOCK_PERIOD_MS,
-                                      MIS2DH_CLOCK_PERIOD_MS,
-                                      1,
-                                      NULL
-    );
+    return true;
 }
 
 /*********************************************************************
- * @fn      Mis2dh_taskFxn
+ * @fn      Mis2dh_readSensorData
  *
- * @brief   Application task entry point for the MIS2DH Accelerometer.
+ * @brief   Read accelerometer data from MIS2DH FIFO.
  *
- * @param   a0, a1 - not used.
+ * @param   data - X, Y, and Z accelerometer data.
  */
-static void Mis2dh_taskFxn(UArg a0, UArg a1) {
-    Mis2dh_init();
+bool Mis2dh_readSensorData(sensor_data_t *data) {
+    uint8_t txBuffer[1];
+    uint8_t rxBuffer[6];
 
-    sensor_data_t data;
+    txBuffer[0] = MIS2DH_OUT_X_L;
 
-    int num_samples;
-    bool full;
-    bool empty;
+    transaction.writeBuf   = txBuffer;
+    transaction.writeCount = 1;
+    transaction.readBuf    = rxBuffer;
+    transaction.readCount  = 6;
 
-    for (;;) {
-        Semaphore_pend(semaphore, BIOS_WAIT_FOREVER);
-        Mis2dh_getNumUnreadSamples(&num_samples);
-        Mis2dh_isFifoFull(&full);
-        Mis2dh_isFifoEmpty(&empty);
-        Log_info3("Num Samples: %d, Full: %d, Empty: %d", num_samples, full, empty);
-
-        if (num_samples < 5) continue;
-
-        // Read 5 samples
-        for (int i = 0; i < 5; i++) {
-            if (Mis2dh_readSensorData(&data)) {
-                Log_info0("Read data from FIFO");
-                Log_info2("XL: %d, XH: %d", data.x_L, data.x_H);
-                Log_info2("YL: %d, YH: %d", data.y_L, data.y_H);
-                Log_info2("ZL: %d, ZH: %d", data.z_L, data.z_H);
-            }
-            else {
-                Log_error0("Error reading data from FIFO. Exiting");
-                Task_exit();
-            }
-        }
+    if (Util_i2cTransfer(&transaction)) {
+        Log_info0("I2C transfer successful");
+        data->x_L = rxBuffer[0];
+        data->x_H = rxBuffer[1];
+        data->y_L = rxBuffer[2];
+        data->y_H = rxBuffer[3];
+        data->z_L = rxBuffer[4];
+        data->z_H = rxBuffer[5];
+        return true;
     }
-}
-
-/*********************************************************************
- * @fn      Mis2dh_clockSwiFxn
- *
- * @brief   Software interrupt for clock.
- *
- * @param   a0 - not used.
- */
-static void Mis2dh_clockSwiFxn(UArg a0) {
-    Semaphore_post(semaphore);
+    else {
+        Log_error0("I2C transfer failed");
+        return false;
+    }
 }
 
 /*********************************************************************
@@ -288,6 +195,7 @@ static bool Mis2dh_writeRegister(uint8_t regAddress, uint8_t data) {
     txBuffer[0] = regAddress;
     txBuffer[1] = data;
 
+    transaction.slaveAddress = MIS2DH_ADDRESS;
     transaction.writeBuf   = txBuffer;
     transaction.writeCount = 2;
     transaction.readBuf    = NULL;
@@ -317,6 +225,7 @@ static bool Mis2dh_readRegister(uint8_t regAddress, uint8_t *data) {
 
     txBuffer[0] = regAddress;
 
+    transaction.slaveAddress = MIS2DH_ADDRESS;
     transaction.writeBuf   = txBuffer;
     transaction.writeCount = 1;
     transaction.readBuf    = rxBuffer;
@@ -472,38 +381,4 @@ static bool Mis2dh_isFifoEmpty(bool *empty) {
     (*empty) = (fifo_src_reg_data & MIS2DH_FIFO_EMPTY_MASK) > 0;
 
     return true;
-}
-
-/*********************************************************************
- * @fn      Mis2dh_readSensorData
- *
- * @brief   Read accelerometer data from MIS2DH FIFO.
- *
- * @param   data - X, Y, and Z accelerometer data.
- */
-static bool Mis2dh_readSensorData(sensor_data_t *data) {
-    uint8_t txBuffer[1];
-    uint8_t rxBuffer[6];
-
-    txBuffer[0] = MIS2DH_OUT_X_L;
-
-    transaction.writeBuf   = txBuffer;
-    transaction.writeCount = 1;
-    transaction.readBuf    = rxBuffer;
-    transaction.readCount  = 6;
-
-    if (Util_i2cTransfer(&transaction)) {
-        Log_info0("I2C transfer successful");
-        data->x_L = rxBuffer[0];
-        data->x_H = rxBuffer[1];
-        data->y_L = rxBuffer[2];
-        data->y_H = rxBuffer[3];
-        data->z_L = rxBuffer[4];
-        data->z_H = rxBuffer[5];
-        return true;
-    }
-    else {
-        Log_error0("I2C transfer failed");
-        return false;
-    }
 }

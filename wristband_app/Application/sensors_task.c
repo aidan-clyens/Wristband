@@ -27,6 +27,8 @@
 #include <sensors_task.h>
 #include <i2c_util.h>
 #include <max32664.h>
+#include <mis2dh_task.h>
+#include <project_zero.h>
 
 /*********************************************************************
  * CONSTANTS
@@ -158,6 +160,11 @@ static void Sensors_init(void) {
     // Start MAX32664 in Application Mode
     Max32664_initApplicationMode();
 
+    // Initialize MIS2DH accelerometer
+    if (!Mis2dh_init()) {
+        Log_error0("Failed to initialize MIS2DH");
+    }
+
     // Start MAX32664 Heart Rate Algorithm
     Max32664_initHeartRateAlgorithm();
 
@@ -179,6 +186,7 @@ static void Sensors_taskFxn(UArg a0, UArg a1) {
     Sensors_init();
 
     int num_reports;
+    sensor_data_t accelerometerReports[5];
     heartrate_data_t reports[32];
 
     for (;;) {
@@ -187,6 +195,11 @@ static void Sensors_taskFxn(UArg a0, UArg a1) {
             Log_info0("Read from Accelerometer");
 
             // Read 5 samples from accelerometer
+            for (int i = 0; i < 5; i++) {
+                sensor_data_t sensorData;
+                Mis2dh_readSensorData(&sensorData);
+                accelerometerReports[i] = sensorData;
+            }
 
             // Write samples to MAX32664
 
