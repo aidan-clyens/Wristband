@@ -99,7 +99,7 @@
  * CONSTANTS
  */
 // Task configuration
-#define PZ_TASK_PRIORITY                     2
+#define PZ_TASK_PRIORITY                     4
 
 #ifndef PZ_TASK_STACK_SIZE
 #define PZ_TASK_STACK_SIZE                   2048
