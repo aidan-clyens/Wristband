@@ -82,7 +82,7 @@
 #include <Board.h>
 
 #include <project_zero.h>
-#include <max32664.h>
+#include <sensors_task.h>
 #include <util.h>
 
 /*********************************************************************
@@ -1128,8 +1128,8 @@ static void ProjectZero_processGapMessage(gapEventHdr_t *pMsg)
                         ANSI_COLOR(FG_GREEN)"%s"ANSI_COLOR(ATTR_RESET),
                       (uintptr_t)addrStr);
 
-            // Initialize MAX32664 sensor
-//            Max32664_enqueueMsg(MAX32664_INIT_HEARTRATE_MODE, NULL);
+            // Initialize sensors
+            Sensors_enqueueMsg(SENSORS_INIT_HEARTRATE_MODE, NULL);
         }
 
         if(linkDB_NumActive() < MAX_NUM_BLE_CONNS)

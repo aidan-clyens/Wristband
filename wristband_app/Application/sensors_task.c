@@ -249,6 +249,24 @@ static void Sensors_taskFxn(UArg a0, UArg a1) {
 static void Sensors_processApplicationMessage(sensors_msg_t *pMsg) {
     switch(pMsg->event) {
         case SENSORS_INIT_HEARTRATE_MODE:
+            // Stop clocks
+            Util_stopClock(&accelerometerReadClock);
+            Util_stopClock(&heartRateReadClock);
+
+            // Start MAX32664 in Application Mode
+            Max32664_initApplicationMode();
+
+            // Initialize MIS2DH accelerometer
+            if (!Mis2dh_init()) {
+                Log_error0("Failed to initialize MIS2DH");
+            }
+
+            // Start MAX32664 Heart Rate Algorithm
+            Max32664_initHeartRateAlgorithm();
+
+            // Start clocks
+            Util_startClock(&accelerometerReadClock);
+            Util_startClock(&heartRateReadClock);
             break;
         case SENSORS_INIT_ECG_MODE:
             break;
