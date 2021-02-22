@@ -495,7 +495,7 @@ void ProjectZero_createTask(void)
  *
  * @brief   Externally update characteristic values from sensor data.
  */
-void ProjectZero_valueChangeHandler(dataType_t type, uint8_t data[])
+void ProjectZero_valueChangeHandler(dataType_t type, uint8_t *data)
 {
     pzCharacteristicData_t *charData = ICall_malloc(sizeof(pzCharacteristicData_t));
 
@@ -1129,7 +1129,7 @@ static void ProjectZero_processGapMessage(gapEventHdr_t *pMsg)
                       (uintptr_t)addrStr);
 
             // Initialize MAX32664 sensor
-            Max32664_enqueueMsg(MAX32664_INIT_HEARTRATE_MODE, NULL);
+//            Max32664_enqueueMsg(MAX32664_INIT_HEARTRATE_MODE, NULL);
         }
 
         if(linkDB_NumActive() < MAX_NUM_BLE_CONNS)

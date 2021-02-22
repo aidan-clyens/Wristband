@@ -84,6 +84,8 @@ static void Sensors_init(void);
 static void Sensors_taskFxn(UArg a0, UArg a1);
 static void Sensors_processApplicationMessage(sensors_msg_t *pMsg);
 
+static void Sensors_updateHeartRateData(heartrate_data_t heartRateData);
+
 static void Sensors_accelerometerReadSwiFxn(UArg a0);
 static void Sensors_heartRateReadSwiFxn(UArg a0);
 
@@ -217,7 +219,9 @@ static void Sensors_taskFxn(UArg a0, UArg a1) {
                 Log_info2("SpO2: %d, SpO2 confidence: %d", reports[i].spO2, reports[i].spO2Confidence);
                 Log_info1("SCD state: %d", reports[i].scdState);
 
-                // TODO: Queue report to be processed
+                // Queue report to be processed
+                heartrate_data_t heartRateData = reports[i];
+                Sensors_updateHeartRateData(heartRateData);
             }
 
             readHeartRateFlag = false;
@@ -257,6 +261,29 @@ static void Sensors_processApplicationMessage(sensors_msg_t *pMsg) {
     if(pMsg->pData != NULL) {
         ICall_free(pMsg->pData);
     }
+}
+
+/*********************************************************************
+ * @fn      Sensors_updateHeartRateData
+ *
+ * @brief   Update heart rate and SpO2 BLE characteristics.
+ *
+ * @param   heartRateData - Data containing new heart rate and SpO2 values.
+ */
+static void Sensors_updateHeartRateData(heartrate_data_t heartRateData) {
+    uint8_t heartRate[2];
+    heartRate[1] = heartRateData.heartRate >> 8;
+    heartRate[0] = heartRateData.heartRate & 0xFF;
+
+    uint8_t spO2[2];
+    spO2[1] = heartRateData.spO2 >> 8;
+    spO2[0] = heartRateData.spO2 & 0xFF;
+
+    ProjectZero_valueChangeHandler(DATA_HEARTRATE, heartRate);
+    ProjectZero_valueChangeHandler(DATA_HEARTRATE_CONFIDENCE, &heartRateData.heartRateConfidence);
+    ProjectZero_valueChangeHandler(DATA_SPO2, spO2);
+    ProjectZero_valueChangeHandler(DATA_SPO2_CONFIDENCE, &heartRateData.spO2Confidence);
+    ProjectZero_valueChangeHandler(DATA_SCD_STATE, &heartRateData.scdState);
 }
 
 /*********************************************************************
