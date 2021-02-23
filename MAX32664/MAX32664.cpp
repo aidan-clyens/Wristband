@@ -201,6 +201,12 @@ void max32664::receiveEvent(int num) {
         Serial.print("Data: ");
         Serial.println(data);
     }
+
+    if (Wire.available()) {
+        second_data = Wire.read();
+        Serial.print("Second Data: ");
+        Serial.println(second_data);
+    }
 }
 
 /*********************************************************************
@@ -298,6 +304,18 @@ void max32664::requestEvent() {
                     // Delay 20 ms for value to update
                     delay(20);
                     Wire.write(SUCCESS);
+                    break;
+                // Enable or disable accelerometer
+                case ACCELEROMETER_ENABLE:
+                    Wire.write(SUCCESS);
+                    if (data == 0x0) {
+                        Serial.print("Set external accelerometer to: ");
+                    }
+                    else if (data == 0x01) {
+                        Serial.print("Set host accelerometer to: ");
+                    }
+                    Serial.println(second_data);
+                    delay(20);
                     break;
                 default:
                     Wire.write(ILLEGAL_FAMILY);

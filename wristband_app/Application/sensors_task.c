@@ -160,14 +160,17 @@ static void Sensors_init(void) {
     readHeartRateFlag = false;
 
     // Start MAX32664 in Application Mode
+    Log_info0("Initializing MAX32664 in Application Mode");
     Max32664_initApplicationMode();
 
     // Initialize MIS2DH accelerometer
+    Log_info0("Initializing MIS2DH");
     if (!Mis2dh_init()) {
         Log_error0("Failed to initialize MIS2DH");
     }
 
     // Start MAX32664 Heart Rate Algorithm
+    Log_info0("Initializing MAX32664 Heart Rate Algorithm");
     Max32664_initHeartRateAlgorithm();
 
     // Start clocks

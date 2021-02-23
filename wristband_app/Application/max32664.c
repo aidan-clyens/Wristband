@@ -62,6 +62,10 @@
 // Sensors
 #define MAX32664_MAX86141_ENABLE            0x00
 
+// Accelerometer
+#define MAX32664_ACCELEROMETER_ENABLE       0x04
+#define MAX32664_EXTERNAL_ACCELEROMETER     0x00
+
 // Algorithms
 #define MAX32664_AGC_ALGORITHM              0x00
 #define MAX32664_WHRM_WSPO2_ALGORITHM       0x07
@@ -121,11 +125,13 @@ static max32664_status_t Max32664_setFifoInterruptThreshold(uint8_t threshold);
 static max32664_status_t Max32664_enableAutoGainControlAlgorithm(uint8_t enable);
 static max32664_status_t Max32664_enableWhrmWspo2Algorithm(uint8_t enableMode);
 static max32664_status_t Max32664_enableMax86141Sensor(uint8_t enable);
+static max32664_status_t Max32664_enableExternalHostAccelerometer(uint8_t enable);
 static max32664_status_t Max32664_readFifoData(uint8_t *data, int num_bytes);
 
 // MAX32664 helper functions
 static max32664_status_t Max32664_readByte(uint8_t family, uint8_t index, uint8_t *data);
 static max32664_status_t Max32664_writeByte(uint8_t family, uint8_t index, uint8_t data, int delay);
+static max32664_status_t Max32664_writeBytes(uint8_t data[], int size_data, int delay);
 
 
 /*********************************************************************
@@ -182,7 +188,13 @@ void Max32664_initHeartRateAlgorithm()
     }
     Log_info1("Set FIFO interrupt threshold to: %d", threshold);
 
-    // TODO: Enable host accelerometer, if used
+    // Enable host accelerometer
+    ret = Max32664_enableExternalHostAccelerometer(0x01);
+    if (ret != 0) {
+        Log_error0("Error enabling external host accelerometer");
+        return;
+    }
+    Log_info0("Enable external host accelerometer");
 
     // TODO: Double check algorithm config
 
@@ -367,12 +379,26 @@ static max32664_status_t Max32664_enableWhrmWspo2Algorithm(uint8_t enableMode)
  *
  * @brief   Enable or disable the MAX86141 on the Biometric Sensor Hub.
  *
- * @param   Enable or Disable
+ * @param   enable - Enable or Disable
  */
 static max32664_status_t Max32664_enableMax86141Sensor(uint8_t enable)
 {
     return Max32664_writeByte(MAX32664_SENSOR_MODE_ENABLE, MAX32664_MAX86141_ENABLE, enable, MAX32664_ENABLE_CMD_DELAY);
 }
+
+/*********************************************************************
+ * @fn      Max32664_enableExternalHostAccelerometer
+ *
+ * @brief   Enable or disable the MAX86141 external host accelerometer.
+ *
+ * @param   enable - Enable or Disable
+ */
+static max32664_status_t Max32664_enableExternalHostAccelerometer(uint8_t enable)
+{
+    uint8_t data[4] = {MAX32664_SENSOR_MODE_ENABLE, MAX32664_ACCELEROMETER_ENABLE, MAX32664_EXTERNAL_ACCELEROMETER, enable};
+    return Max32664_writeBytes(data, 4, MAX32664_ENABLE_CMD_DELAY);
+}
+
 
 /*********************************************************************
  * @fn      Max32664_readFifoData
@@ -433,6 +459,40 @@ static max32664_status_t Max32664_writeByte(uint8_t family, uint8_t index, uint8
     transaction.slaveAddress = MAX32664_ADDRESS;
     transaction.writeBuf   = txBuffer;
     transaction.writeCount = 3;
+    transaction.readBuf    = rxBuffer;
+    transaction.readCount  = 1;
+
+    if (Util_i2cTransfer(&transaction)) {
+        Log_info0("I2C transfer successful");
+        ret = (max32664_status_t)rxBuffer[0];
+    }
+    else {
+        Log_error0("I2C transfer failed");
+    }
+
+    return ret;
+}
+
+/*********************************************************************
+ * @fn      Max32664_writeBytes
+ *
+ * @brief   Write a byte to the Biometric Sensor Hub.
+ *
+ * @param   family  -   Family register byte
+ *          index   -   Index byte of family
+ *          data    -   Data to write
+ *          size_data - Number of data bytes
+ *          delay   -   Delay in ms to wait in between write and read
+ */
+static max32664_status_t Max32664_writeBytes(uint8_t data[], int size_data, int delay)
+{
+    max32664_status_t ret = STATUS_UNKNOWN_ERROR;
+
+    uint8_t rxBuffer[1];
+
+    transaction.slaveAddress = MAX32664_ADDRESS;
+    transaction.writeBuf   = data;
+    transaction.writeCount = size_data;
     transaction.readBuf    = rxBuffer;
     transaction.readCount  = 1;
 

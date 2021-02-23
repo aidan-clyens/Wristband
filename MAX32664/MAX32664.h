@@ -35,6 +35,10 @@
 #define AGC_ALGORITHM               0x00
 #define WHRM_WSPO2_ALGORITHM        0x07
 
+// Accelerometer
+#define ACCELEROMETER_ENABLE       0x04
+#define EXTERNAL_ACCELEROMETER     0x00
+
 // FIFO
 #define NUM_FIFO_SAMPLES            0x00
 #define READ_FIFO_DATA              0x01
@@ -91,6 +95,7 @@ typedef enum {
 static uint8_t family = 0x00;
 static uint8_t index = 0x00;
 static uint8_t data = 0x00;
+static uint8_t second_data = 0x00;
 
 static int num_samples_read = 0;
 
