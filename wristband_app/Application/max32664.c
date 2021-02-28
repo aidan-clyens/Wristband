@@ -145,8 +145,10 @@ static max32664_status_t Max32664_writeBytes(uint8_t data[], int size_data, int 
  *
  * @brief   Initialize the Biometric Sensor Hub in Application Mode.
  */
-void Max32664_initApplicationMode()
+bool Max32664_initApplicationMode()
 {
+    uint8_t ret = 0xFF;
+
     GPIO_write(Board_GPIO_MAX32664_RESET, GPIO_CFG_OUT_LOW);
     GPIO_write(Board_GPIO_MAX32664_MFIO, GPIO_CFG_OUT_HIGH);
 
@@ -159,7 +161,10 @@ void Max32664_initApplicationMode()
     // Delay for 1 s
     Task_sleep(1100 * (1000 / Clock_tickPeriod));
 
-    Log_info0("Initialized MAX32664 in Application Mode");
+    // Test I2C connection
+    uint8_t sensor_status;
+    ret = Max32664_readSensorHubStatus(&sensor_status);
+    return (ret == STATUS_SUCCESS && sensor_status == 0);
 }
 
 /*********************************************************************
@@ -252,7 +257,7 @@ max32664_status_t Max32664_readFifoNumSamples(uint8_t *num_samples)
  *
  * @param   Heart rate, SpO2, confidence and status values
  */
-void Max32664_readHeartRate(heartrate_data_t reports[], int *num_reports)
+bool Max32664_readHeartRate(heartrate_data_t reports[], int *num_reports)
 {
     max32664_status_t ret;
     uint8_t num_samples;
@@ -264,20 +269,20 @@ void Max32664_readHeartRate(heartrate_data_t reports[], int *num_reports)
     ret = Max32664_readSensorHubStatus(&sensor_status);
     if (ret != STATUS_SUCCESS || sensor_status == 1) {
         Log_error0("Error communicating with Sensor Hub, cannot read Heart Rate data");
-        return;
+        return false;
     }
     Log_info0("Reading Heart Rate data from Sensor Hub");
     // TODO: Check if bit 3 (FIFO filled to threshold) is set
 
     if (Max32664_readFifoNumSamples(&num_samples) != STATUS_SUCCESS) {
         Log_error0("Error getting number of FIFO samples");
-        return;
+        return false;
     }
     Log_info1("Reading %d samples", num_samples);
 
     if (Max32664_readFifoData(reportBuffer, num_samples) != STATUS_SUCCESS) {
         Log_error0("Error reading FIFO samples");
-        return;
+        return false;
     }
     Log_info1("Read %d FIFO samples", num_samples);
 
@@ -304,6 +309,8 @@ void Max32664_readHeartRate(heartrate_data_t reports[], int *num_reports)
     }
 
     (*num_reports) = number_reports;
+
+    return true;
 }
 
 bool Max32664_writeInputFifo(uint8_t *data, int size_data)

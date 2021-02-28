@@ -168,7 +168,9 @@ static void Sensors_init(void) {
 
     // Start MAX32664 in Application Mode
     Log_info0("Initializing MAX32664 in Application Mode");
-    Max32664_initApplicationMode();
+    if (!Max32664_initApplicationMode()) {
+        Log_error0("Failed to initialize MAX32664 in Application Mode");
+    }
 
     // Initialize MIS2DH accelerometer
     Log_info0("Initializing MIS2DH");
@@ -229,16 +231,17 @@ static void Sensors_taskFxn(UArg a0, UArg a1) {
             Log_info0("Read Heart Rate");
 
             // Read report from MAX32664
-            Max32664_readHeartRate(reports, &num_reports);
-            Log_info1("Read %d reports", num_reports);
-            for (int i = 0; i < num_reports; i++) {
-                Log_info2("HR: %d, HR confidence: %d", reports[i].heartRate, reports[i].heartRateConfidence);
-                Log_info2("SpO2: %d, SpO2 confidence: %d", reports[i].spO2, reports[i].spO2Confidence);
-                Log_info1("SCD state: %d", reports[i].scdState);
+            if (Max32664_readHeartRate(reports, &num_reports)) {
+                Log_info1("Read %d reports", num_reports);
+                for (int i = 0; i < num_reports; i++) {
+                    Log_info2("HR: %d, HR confidence: %d", reports[i].heartRate, reports[i].heartRateConfidence);
+                    Log_info2("SpO2: %d, SpO2 confidence: %d", reports[i].spO2, reports[i].spO2Confidence);
+                    Log_info1("SCD state: %d", reports[i].scdState);
 
-                // Queue report to be processed
-                heartrate_data_t heartRateData = reports[i];
-                Sensors_updateHeartRateData(heartRateData);
+                    // Queue report to be processed
+                    heartrate_data_t heartRateData = reports[i];
+                    Sensors_updateHeartRateData(heartRateData);
+                }
             }
 
             readHeartRateFlag = false;
