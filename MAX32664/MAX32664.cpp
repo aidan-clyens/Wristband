@@ -207,6 +207,10 @@ void max32664::receiveEvent(int num) {
         Serial.print("Second Data: ");
         Serial.println(second_data);
     }
+
+    while (Wire.available()) {
+        Serial.println(Wire.read());
+    }
 }
 
 /*********************************************************************
@@ -291,6 +295,14 @@ void max32664::requestEvent() {
                     Wire.write(ILLEGAL_FAMILY);
                     Serial.print("\nInvalid command: ");
                     Serial.print(family);
+                    break;
+            }
+            break;
+        case WRITE_INPUT_FIFO:
+            switch (index) {
+                case 0x0:
+                    Wire.write(SUCCESS);
+                    Serial.println("Writing data to output FIFO");
                     break;
             }
             break;

@@ -25,6 +25,7 @@
 #define SET_OUTPUT_MODE             0x10
 #define READ_OUTPUT_MODE            0x11
 #define READ_OUTPUT_FIFO            0x12
+#define WRITE_INPUT_FIFO            0x14
 #define SENSOR_MODE_ENABLE          0x44
 #define ALGORITHM_MODE_ENABLE       0x52
 

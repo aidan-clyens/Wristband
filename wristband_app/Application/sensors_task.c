@@ -40,6 +40,10 @@
 #define SENSORS_ACCELEROMETER_POLLING_PERIOD_MS         20000     // Change to 200 ms
 #define SENSORS_HEART_RATE_POLLING_PERIOD_MS            4000      // Change to 40 ms
 
+// Data
+#define SENSORS_NUM_ACCELEROMETER_SAMPLES               5
+#define SENSORS_ACCELEROMETER_SAMPLE_SIZE               6
+
 /*********************************************************************
  * TYPEDEFS
  */
@@ -76,6 +80,8 @@ static bool readHeartRateFlag;
 // Semaphores
 static Semaphore_Handle swiSemaphore;
 
+static uint8_t accelerometerSamplesBytes[SENSORS_NUM_ACCELEROMETER_SAMPLES * SENSORS_ACCELEROMETER_SAMPLE_SIZE + 2];
+
 /*********************************************************************
  * LOCAL FUNCTIONS
  */
@@ -85,6 +91,7 @@ static void Sensors_taskFxn(UArg a0, UArg a1);
 static void Sensors_processApplicationMessage(sensors_msg_t *pMsg);
 
 static void Sensors_updateHeartRateData(heartrate_data_t heartRateData);
+static void Sensors_sendAccelerometerSamples(sensor_data_t samples[]);
 
 static void Sensors_accelerometerReadSwiFxn(UArg a0);
 static void Sensors_heartRateReadSwiFxn(UArg a0);
@@ -191,7 +198,7 @@ static void Sensors_taskFxn(UArg a0, UArg a1) {
     Sensors_init();
 
     int num_reports;
-    sensor_data_t accelerometerReports[5];
+    sensor_data_t accelerometerSamples[5];
     heartrate_data_t reports[32];
 
     for (;;) {
@@ -200,13 +207,20 @@ static void Sensors_taskFxn(UArg a0, UArg a1) {
             Log_info0("Read from Accelerometer");
 
             // Read 5 samples from accelerometer
-            for (int i = 0; i < 5; i++) {
+            for (int i = 0; i < SENSORS_NUM_ACCELEROMETER_SAMPLES; i++) {
                 sensor_data_t sensorData;
-                Mis2dh_readSensorData(&sensorData);
-                accelerometerReports[i] = sensorData;
+                sensorData.x_L = 1;
+                sensorData.x_H = 2;
+                sensorData.y_L = 3;
+                sensorData.y_H = 4;
+                sensorData.z_L = 5;
+                sensorData.z_H = 6;
+//                Mis2dh_readSensorData(&sensorData);
+                accelerometerSamples[i] = sensorData;
             }
 
             // Write samples to MAX32664
+            Sensors_sendAccelerometerSamples(accelerometerSamples);
 
             readAccelerometerFlag = false;
         }
@@ -305,6 +319,27 @@ static void Sensors_updateHeartRateData(heartrate_data_t heartRateData) {
     ProjectZero_valueChangeHandler(DATA_SPO2, spO2);
     ProjectZero_valueChangeHandler(DATA_SPO2_CONFIDENCE, &heartRateData.spO2Confidence);
     ProjectZero_valueChangeHandler(DATA_SCD_STATE, &heartRateData.scdState);
+}
+
+static void Sensors_sendAccelerometerSamples(sensor_data_t samples[]) {
+    int index = 0;
+    for (int i = 0; i < SENSORS_NUM_ACCELEROMETER_SAMPLES; i++) {
+        accelerometerSamplesBytes[index+2] = samples[i].x_L;
+        accelerometerSamplesBytes[index+1+2] = samples[i].x_H;
+        accelerometerSamplesBytes[index+2+2] = samples[i].y_L;
+        accelerometerSamplesBytes[index+3+2] = samples[i].y_H;
+        accelerometerSamplesBytes[index+4+2] = samples[i].z_L;
+        accelerometerSamplesBytes[index+5+2] = samples[i].z_H;
+
+        index += SENSORS_ACCELEROMETER_SAMPLE_SIZE;
+    }
+
+    if(Max32664_writeInputFifo(accelerometerSamplesBytes, SENSORS_NUM_ACCELEROMETER_SAMPLES * SENSORS_ACCELEROMETER_SAMPLE_SIZE + 2)) {
+        Log_info0("Sent 5 accelerometer samples to MAX32664");
+    }
+    else {
+        Log_error0("Error sending accelerometer samples to MAX32664");
+    }
 }
 
 /*********************************************************************

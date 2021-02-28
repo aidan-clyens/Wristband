@@ -43,8 +43,8 @@
 #define MAX32664_HIGH_HEARTRATE             150
 
 // I2C
-#define MAX32664_ADDRESS                0xAA
-#define MAX32664_CMD_DELAY              6
+#define MAX32664_ADDRESS                    0xAA
+#define MAX32664_CMD_DELAY                  6
 #define MAX32664_ENABLE_CMD_DELAY           22
 
 // Family names
@@ -52,6 +52,7 @@
 #define MAX32664_SET_OUTPUT_MODE            0x10
 #define MAX32664_READ_OUTPUT_MODE           0x11
 #define MAX32664_READ_OUTPUT_FIFO           0x12
+#define MAX32664_WRITE_INPUT_FIFO           0x14
 #define MAX32664_SENSOR_MODE_ENABLE         0x44
 #define MAX32664_ALGORITHM_MODE_ENABLE      0x52
 
@@ -127,6 +128,7 @@ static max32664_status_t Max32664_enableWhrmWspo2Algorithm(uint8_t enableMode);
 static max32664_status_t Max32664_enableMax86141Sensor(uint8_t enable);
 static max32664_status_t Max32664_enableExternalHostAccelerometer(uint8_t enable);
 static max32664_status_t Max32664_readFifoData(uint8_t *data, int num_bytes);
+static max32664_status_t Max32664_writeFifoData(uint8_t *data, int num_bytes);
 
 // MAX32664 helper functions
 static max32664_status_t Max32664_readByte(uint8_t family, uint8_t index, uint8_t *data);
@@ -196,7 +198,7 @@ void Max32664_initHeartRateAlgorithm()
     }
     Log_info0("Enable external host accelerometer");
 
-    // TODO: Double check algorithm config
+    // TODO: Change algorithm to use MAX30101
 
     // Enable Automatic Gain Control algorithm
     enable = 0x01;
@@ -304,6 +306,32 @@ void Max32664_readHeartRate(heartrate_data_t reports[], int *num_reports)
     (*num_reports) = number_reports;
 }
 
+bool Max32664_writeInputFifo(uint8_t *data, int size_data)
+{
+    max32664_status_t ret = STATUS_UNKNOWN_ERROR;
+
+    data[0] = MAX32664_WRITE_INPUT_FIFO;
+    data[1] = 0;
+
+    uint8_t rxBuffer[1];
+
+    transaction.slaveAddress = MAX32664_ADDRESS;
+    transaction.writeBuf   = data;
+    transaction.writeCount = size_data;
+    transaction.readBuf    = rxBuffer;
+    transaction.readCount  = 1;
+
+    if (Util_i2cTransfer(&transaction)) {
+        Log_info0("I2C transfer successful");
+        ret = (max32664_status_t)rxBuffer[0];
+    }
+    else {
+        Log_error0("I2C transfer failed");
+    }
+
+
+    return (ret == STATUS_SUCCESS);
+}
 
 /*********************************************************************
  * @fn      Max32664_readSensorHubStatus
@@ -399,14 +427,13 @@ static max32664_status_t Max32664_enableExternalHostAccelerometer(uint8_t enable
     return Max32664_writeBytes(data, 4, MAX32664_ENABLE_CMD_DELAY);
 }
 
-
 /*********************************************************************
  * @fn      Max32664_readFifoData
  *
- * @brief   Read the samples from the FIFO in the Biometric Sensor Hub FIFO.
+ * @brief   Read the samples from the FIFO in the Biometric Sensor Hub.
  *
  * @param   data - Buffer to store FIFO data
- * @param   num_bytes - Number of bytes to read from the FIFO
+ *          num_bytes - Number of bytes to read from the FIFO
  */
 static max32664_status_t Max32664_readFifoData(uint8_t *data, int num_bytes)
 {
@@ -433,7 +460,6 @@ static max32664_status_t Max32664_readFifoData(uint8_t *data, int num_bytes)
 
     return ret;
 }
-
 
 /*********************************************************************
  * @fn      Max32664_writeByte
