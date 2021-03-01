@@ -172,7 +172,7 @@ bool Max32664_initApplicationMode()
  *
  * @brief   Initialize the Heart Rate algorithm on the Biometric Sensor Hub.
  */
-void Max32664_initHeartRateAlgorithm()
+bool Max32664_initHeartRateAlgorithm()
 {
     uint8_t enable;
     uint8_t mode;
@@ -182,7 +182,7 @@ void Max32664_initHeartRateAlgorithm()
     ret = Max32664_setOutputMode(OUTPUT_MODE_ALGORITHM_DATA);
     if (ret != 0) {
         Log_error0("Error setting output mode");
-        return;
+        return false;
     }
     Log_info0("Set output mode to Algorithm Data");
 
@@ -191,7 +191,7 @@ void Max32664_initHeartRateAlgorithm()
     ret = Max32664_setFifoInterruptThreshold(threshold);
     if (ret != 0) {
         Log_error0("Error setting FIFO interrupt threshold");
-        return;
+        return false;
     }
     Log_info1("Set FIFO interrupt threshold to: %d", threshold);
 
@@ -199,7 +199,7 @@ void Max32664_initHeartRateAlgorithm()
     ret = Max32664_enableExternalHostAccelerometer(0x01);
     if (ret != 0) {
         Log_error0("Error enabling external host accelerometer");
-        return;
+        return false;
     }
     Log_info0("Enable external host accelerometer");
 
@@ -210,7 +210,7 @@ void Max32664_initHeartRateAlgorithm()
     ret = Max32664_enableAutoGainControlAlgorithm(enable);
     if (ret != 0) {
         Log_error0("Error enabling Automatic Gain Control algorithm");
-        return;
+        return false;
     }
     Log_info0("Enable Automatic Gain Control algorithm");
 
@@ -219,7 +219,7 @@ void Max32664_initHeartRateAlgorithm()
     ret = Max32664_enableMax86141Sensor(enable);
     if (ret != 0) {
         Log_error0("Error enabling MAX86141 sensor");
-        return;
+        return false;
     }
     Log_info0("Enable MAX86141 sensor");
 
@@ -230,12 +230,14 @@ void Max32664_initHeartRateAlgorithm()
     ret = Max32664_enableWhrmWspo2Algorithm(mode);
     if (ret != 0) {
         Log_error0("Error enabling WHRM + WSpo2 (version C) algorithm");
-        return;
+        return false;
     }
     Log_info1("Enable WHRM + WSpo2 (version C) algorithm in mode: %d", mode);
 
     heartRateAlgorithmInitialized = true;
     Log_info0("MAX32664 Heart Rate Algorithm configured");
+
+    return true;
 }
 
 /*********************************************************************

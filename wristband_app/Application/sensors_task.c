@@ -47,6 +47,10 @@
 /*********************************************************************
  * TYPEDEFS
  */
+typedef enum {
+    STATE_UNINITIALIZED,
+    STATE_RUNNING
+} sensors_task_state_t;
 
 /*********************************************************************
  * GLOBAL VARIABLES
@@ -82,6 +86,8 @@ static Semaphore_Handle swiSemaphore;
 
 static uint8_t accelerometerSamplesBytes[SENSORS_NUM_ACCELEROMETER_SAMPLES * SENSORS_ACCELEROMETER_SAMPLE_SIZE + 2];
 
+static sensors_task_state_t sensorsTaskState;
+
 /*********************************************************************
  * LOCAL FUNCTIONS
  */
@@ -90,6 +96,7 @@ static void Sensors_init(void);
 static void Sensors_taskFxn(UArg a0, UArg a1);
 static void Sensors_processApplicationMessage(sensors_msg_t *pMsg);
 
+static bool Sensors_initDevices();
 static void Sensors_updateHeartRateData(heartrate_data_t heartRateData);
 static void Sensors_sendAccelerometerSamples(sensor_data_t samples[]);
 
@@ -166,27 +173,10 @@ static void Sensors_init(void) {
     );
     readHeartRateFlag = false;
 
-    // Start MAX32664 in Application Mode
-    Log_info0("Initializing MAX32664 in Application Mode");
-    if (!Max32664_initApplicationMode()) {
-        Log_error0("Failed to initialize MAX32664 in Application Mode");
+    sensorsTaskState = STATE_UNINITIALIZED;
+    if (Sensors_initDevices()) {
+        sensorsTaskState = STATE_RUNNING;
     }
-
-    // Initialize MIS2DH accelerometer
-    Log_info0("Initializing MIS2DH");
-    if (!Mis2dh_init()) {
-        Log_error0("Failed to initialize MIS2DH");
-    }
-
-    // Start MAX32664 Heart Rate Algorithm
-    Log_info0("Initializing MAX32664 Heart Rate Algorithm");
-    Max32664_initHeartRateAlgorithm();
-
-    // Start clocks
-    Util_startClock(&accelerometerReadClock);
-    Util_startClock(&heartRateReadClock);
-
-    Log_info0("Sensors initialized");
 }
 
 /*********************************************************************
@@ -204,47 +194,66 @@ static void Sensors_taskFxn(UArg a0, UArg a1) {
     heartrate_data_t reports[32];
 
     for (;;) {
-        Semaphore_pend(swiSemaphore, BIOS_WAIT_FOREVER);
-        if (readAccelerometerFlag) {
-            Log_info0("Read from Accelerometer");
+        switch (sensorsTaskState) {
+            case STATE_RUNNING: {
+                Semaphore_pend(swiSemaphore, BIOS_WAIT_FOREVER);
+                if (readAccelerometerFlag) {
+                    Log_info0("Read from Accelerometer");
 
-            // Read 5 samples from accelerometer
-            for (int i = 0; i < SENSORS_NUM_ACCELEROMETER_SAMPLES; i++) {
-                sensor_data_t sensorData;
-                sensorData.x_L = 1;
-                sensorData.x_H = 2;
-                sensorData.y_L = 3;
-                sensorData.y_H = 4;
-                sensorData.z_L = 5;
-                sensorData.z_H = 6;
-//                Mis2dh_readSensorData(&sensorData);
-                accelerometerSamples[i] = sensorData;
-            }
+                    // Read 5 samples from accelerometer
+                    for (int i = 0; i < SENSORS_NUM_ACCELEROMETER_SAMPLES; i++) {
+                        sensor_data_t sensorData;
+                        sensorData.x_L = 1;
+                        sensorData.x_H = 2;
+                        sensorData.y_L = 3;
+                        sensorData.y_H = 4;
+                        sensorData.z_L = 5;
+                        sensorData.z_H = 6;
+        //                Mis2dh_readSensorData(&sensorData);
+                        accelerometerSamples[i] = sensorData;
+                    }
 
-            // Write samples to MAX32664
-            Sensors_sendAccelerometerSamples(accelerometerSamples);
+                    // Write samples to MAX32664
+                    Sensors_sendAccelerometerSamples(accelerometerSamples);
 
-            readAccelerometerFlag = false;
-        }
-
-        if (readHeartRateFlag) {
-            Log_info0("Read Heart Rate");
-
-            // Read report from MAX32664
-            if (Max32664_readHeartRate(reports, &num_reports)) {
-                Log_info1("Read %d reports", num_reports);
-                for (int i = 0; i < num_reports; i++) {
-                    Log_info2("HR: %d, HR confidence: %d", reports[i].heartRate, reports[i].heartRateConfidence);
-                    Log_info2("SpO2: %d, SpO2 confidence: %d", reports[i].spO2, reports[i].spO2Confidence);
-                    Log_info1("SCD state: %d", reports[i].scdState);
-
-                    // Queue report to be processed
-                    heartrate_data_t heartRateData = reports[i];
-                    Sensors_updateHeartRateData(heartRateData);
+                    readAccelerometerFlag = false;
                 }
-            }
 
-            readHeartRateFlag = false;
+                if (readHeartRateFlag) {
+                    Log_info0("Read Heart Rate");
+
+                    // Read report from MAX32664
+                    if (Max32664_readHeartRate(reports, &num_reports)) {
+                        Log_info1("Read %d reports", num_reports);
+                        for (int i = 0; i < num_reports; i++) {
+                            Log_info2("HR: %d, HR confidence: %d", reports[i].heartRate, reports[i].heartRateConfidence);
+                            Log_info2("SpO2: %d, SpO2 confidence: %d", reports[i].spO2, reports[i].spO2Confidence);
+                            Log_info1("SCD state: %d", reports[i].scdState);
+
+                            // Queue report to be processed
+                            heartrate_data_t heartRateData = reports[i];
+                            Sensors_updateHeartRateData(heartRateData);
+                        }
+                    }
+                    else {
+                        sensorsTaskState = STATE_UNINITIALIZED;
+                    }
+
+                    readHeartRateFlag = false;
+                }
+
+                break;
+            }
+            case STATE_UNINITIALIZED: {
+                if (Sensors_initDevices()) {
+                    sensorsTaskState = STATE_RUNNING;
+                }
+
+                // Delay for 100 ms
+                Task_sleep(100 * (1000 / Clock_tickPeriod));
+
+                break;
+            }
         }
 
         // Process messages sent from another task or another context.
@@ -273,20 +282,9 @@ static void Sensors_processApplicationMessage(sensors_msg_t *pMsg) {
             Util_stopClock(&accelerometerReadClock);
             Util_stopClock(&heartRateReadClock);
 
-            // Start MAX32664 in Application Mode
-            Max32664_initApplicationMode();
-
-            // Initialize MIS2DH accelerometer
-            if (!Mis2dh_init()) {
-                Log_error0("Failed to initialize MIS2DH");
+            if (Sensors_initDevices()) {
+                sensorsTaskState = STATE_RUNNING;
             }
-
-            // Start MAX32664 Heart Rate Algorithm
-            Max32664_initHeartRateAlgorithm();
-
-            // Start clocks
-            Util_startClock(&accelerometerReadClock);
-            Util_startClock(&heartRateReadClock);
             break;
         case SENSORS_INIT_ECG_MODE:
             break;
@@ -299,6 +297,37 @@ static void Sensors_processApplicationMessage(sensors_msg_t *pMsg) {
     if(pMsg->pData != NULL) {
         ICall_free(pMsg->pData);
     }
+}
+
+static bool Sensors_initDevices() {
+    // Start MAX32664 in Application Mode
+    Log_info0("Initializing MAX32664 in Application Mode");
+    if (!Max32664_initApplicationMode()) {
+        Log_error0("Failed to initialize MAX32664 in Application Mode");
+        return false;
+    }
+
+    // Initialize MIS2DH accelerometer
+    Log_info0("Initializing MIS2DH");
+    if (!Mis2dh_init()) {
+        Log_error0("Failed to initialize MIS2DH");
+        return false;
+    }
+
+    // Start MAX32664 Heart Rate Algorithm
+    Log_info0("Initializing MAX32664 Heart Rate Algorithm");
+    if (!Max32664_initHeartRateAlgorithm()) {
+        Log_error0("Error initializing MAX32664 Heart Rate Algorithm");
+        return false;
+    }
+
+    // Start clocks
+    Util_startClock(&accelerometerReadClock);
+    Util_startClock(&heartRateReadClock);
+
+    Log_info0("Sensors initialized");
+
+    return true;
 }
 
 /*********************************************************************

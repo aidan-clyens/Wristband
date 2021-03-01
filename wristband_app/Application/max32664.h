@@ -51,7 +51,7 @@ typedef enum {
  */
 // MAX32664 commands
 extern bool Max32664_initApplicationMode();
-extern void Max32664_initHeartRateAlgorithm();
+extern bool Max32664_initHeartRateAlgorithm();
 extern max32664_status_t Max32664_readFifoNumSamples(uint8_t *num_samples);
 extern bool Max32664_readHeartRate(heartrate_data_t reports[], int *num_reports);
 extern bool Max32664_writeInputFifo(uint8_t *data, int size_data);
