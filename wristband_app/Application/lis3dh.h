@@ -1,12 +1,12 @@
 /*
- * mis2dh_task.h
+ * lis3dh.h
  *
  *  Created on: Feb 17, 2021
  *      Author: Aidan Clyens
  */
 
-#ifndef APPLICATION_MIS2DH_TASK_H_
-#define APPLICATION_MIS2DH_TASK_H_
+#ifndef APPLICATION_LIS3DH_H_
+#define APPLICATION_LIS3DH_H_
 
 #ifdef __cplusplus
 extern "C"
@@ -29,12 +29,15 @@ typedef struct {
 /*********************************************************************
  * FUNCTIONS
  */
-extern bool Mis2dh_init(void);
-extern bool Mis2dh_readSensorData(sensor_data_t *data);
+extern bool Lis3dh_init(void);
+extern bool Lis3dh_getNumUnreadSamples(int *num_samples);
+extern bool Lis3dh_readSensorData(sensor_data_t *data, int numSamples);
+
+extern void Lis3dh_printSample(sensor_data_t data);
 
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* APPLICATION_MIS2DH_TASK_H_ */
+#endif /* APPLICATION_LIS3DH_H_ */

@@ -26,8 +26,8 @@
 
 #include <sensors_task.h>
 #include <i2c_util.h>
+#include <lis3dh.h>
 #include <max32664.h>
-#include <mis2dh_task.h>
 #include <project_zero.h>
 
 /*********************************************************************
@@ -37,8 +37,8 @@
 #define SENSORS_TASK_PRIORITY                           1
 
 // Clocks
-#define SENSORS_ACCELEROMETER_POLLING_PERIOD_MS         20000     // Change to 200 ms
-#define SENSORS_HEART_RATE_POLLING_PERIOD_MS            4000      // Change to 40 ms
+#define SENSORS_ACCELEROMETER_POLLING_PERIOD_MS         200    // Change to 200 ms
+#define SENSORS_HEART_RATE_POLLING_PERIOD_MS            40      // Change to 40 ms
 
 // Data
 #define SENSORS_NUM_ACCELEROMETER_SAMPLES               5
@@ -189,43 +189,55 @@ static void Sensors_init(void) {
 static void Sensors_taskFxn(UArg a0, UArg a1) {
     Sensors_init();
 
-    int num_reports;
-    sensor_data_t accelerometerSamples[5];
+    int numReports;
+    int numAccelerometerSamples;
+    sensor_data_t accelerometerSamples[SENSORS_NUM_ACCELEROMETER_SAMPLES];
     heartrate_data_t reports[32];
 
     for (;;) {
         switch (sensorsTaskState) {
+            // Running State: Read 5 accelerometer samples every 200 ms and a heart rate report every 40 ms
             case STATE_RUNNING: {
                 Semaphore_pend(swiSemaphore, BIOS_WAIT_FOREVER);
+                // Read accelerometer data and send to Biometric Sensor Hub
                 if (readAccelerometerFlag) {
                     Log_info0("Read from Accelerometer");
 
-                    // Read 5 samples from accelerometer
-                    for (int i = 0; i < SENSORS_NUM_ACCELEROMETER_SAMPLES; i++) {
-                        sensor_data_t sensorData;
-                        sensorData.x_L = 1;
-                        sensorData.x_H = 2;
-                        sensorData.y_L = 3;
-                        sensorData.y_H = 4;
-                        sensorData.z_L = 5;
-                        sensorData.z_H = 6;
-        //                Mis2dh_readSensorData(&sensorData);
-                        accelerometerSamples[i] = sensorData;
+                    if(!Lis3dh_getNumUnreadSamples(&numAccelerometerSamples)) {
+                        Log_error0("Error getting unread number of accelerometer samples");
+                        sensorsTaskState = STATE_UNINITIALIZED;
+                    }
+                    else {
+                        Log_info1("%d unread accelerometer samples", numAccelerometerSamples);
                     }
 
-                    // Write samples to MAX32664
-                    Sensors_sendAccelerometerSamples(accelerometerSamples);
+                    if (numAccelerometerSamples >= SENSORS_NUM_ACCELEROMETER_SAMPLES) {
+                        // Read samples from accelerometer
+                        if (!Lis3dh_readSensorData(accelerometerSamples, SENSORS_NUM_ACCELEROMETER_SAMPLES)) {
+                            Log_error0("Error reading accelerometer samples");
+                            sensorsTaskState = STATE_UNINITIALIZED;
+                        }
+                        else {
+                            Log_info1("Read %d accelerometer samples", SENSORS_NUM_ACCELEROMETER_SAMPLES);
+                            for (int i = 0; i < SENSORS_NUM_ACCELEROMETER_SAMPLES; i++) {
+                                Lis3dh_printSample(accelerometerSamples[i]);
+                            }
+                            // Write samples to MAX32664
+                            Sensors_sendAccelerometerSamples(accelerometerSamples);
+                        }
+                    }
 
                     readAccelerometerFlag = false;
                 }
 
+                // Read heart rate and SpO2 data
                 if (readHeartRateFlag) {
                     Log_info0("Read Heart Rate");
 
                     // Read report from MAX32664
-                    if (Max32664_readHeartRate(reports, &num_reports)) {
-                        Log_info1("Read %d reports", num_reports);
-                        for (int i = 0; i < num_reports; i++) {
+                    if (Max32664_readHeartRate(reports, &numReports)) {
+                        Log_info1("Read %d reports", numReports);
+                        for (int i = 0; i < numReports; i++) {
                             Log_info2("HR: %d, HR confidence: %d", reports[i].heartRate, reports[i].heartRateConfidence);
                             Log_info2("SpO2: %d, SpO2 confidence: %d", reports[i].spO2, reports[i].spO2Confidence);
                             Log_info1("SCD state: %d", reports[i].scdState);
@@ -244,10 +256,9 @@ static void Sensors_taskFxn(UArg a0, UArg a1) {
 
                 break;
             }
+            // Uninitialized State: An error caused the sensors to be re-initialized. Attempt to reconnect with the sensors until successful
             case STATE_UNINITIALIZED: {
-                if (Sensors_initDevices()) {
-                    sensorsTaskState = STATE_RUNNING;
-                }
+                Sensors_enqueueMsg(SENSORS_INIT_HEARTRATE_MODE, NULL);
 
                 // Delay for 100 ms
                 Task_sleep(100 * (1000 / Clock_tickPeriod));
@@ -307,10 +318,10 @@ static bool Sensors_initDevices() {
         return false;
     }
 
-    // Initialize MIS2DH accelerometer
-    Log_info0("Initializing MIS2DH");
-    if (!Mis2dh_init()) {
-        Log_error0("Failed to initialize MIS2DH");
+    // Initialize LIS3DH accelerometer
+    Log_info0("Initializing LIS3DH");
+    if (!Lis3dh_init()) {
+        Log_error0("Failed to initialize LIS3DH");
         return false;
     }
 
