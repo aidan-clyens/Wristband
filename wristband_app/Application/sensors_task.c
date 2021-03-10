@@ -81,6 +81,8 @@ static Clock_Struct heartRateReadClock;
 static Clock_Handle heartRateReadClockHandle;
 static bool readHeartRateFlag;
 
+static bool freeFallInterruptFlag;
+
 // Semaphores
 static Semaphore_Handle swiSemaphore;
 
@@ -102,6 +104,7 @@ static void Sensors_sendAccelerometerSamples(sensor_data_t samples[]);
 
 static void Sensors_accelerometerReadSwiFxn(UArg a0);
 static void Sensors_heartRateReadSwiFxn(UArg a0);
+static void Sensors_freeFallSwiFxn(UArg a0);
 
 /*********************************************************************
  * PUBLIC FUNCTIONS
@@ -159,6 +162,7 @@ static void Sensors_init(void) {
     );
     readAccelerometerFlag = false;
     readHeartRateFlag = false;
+    freeFallInterruptFlag = false;
 
     sensorsTaskState = STATE_UNINITIALIZED;
     if (Sensors_initDevices()) {
@@ -190,6 +194,19 @@ static void Sensors_taskFxn(UArg a0, UArg a1) {
             // Running State: Read 5 accelerometer samples every 200 ms and a heart rate report every 40 ms
             case STATE_RUNNING: {
                 Semaphore_pend(swiSemaphore, BIOS_WAIT_FOREVER);
+                // Deal with free-fall interrupts
+                if (freeFallInterruptFlag) {
+                    Log_info0("Free-fall detected, triggering alert");
+
+                    // Trigger emergency alert
+                    ProjectZero_triggerEmergencyAlert(1);
+
+                    if (!Lis3dh_clearInterrupts()) {
+                        Log_error0("Failed to clear free-fall interrupt");
+                    }
+                    freeFallInterruptFlag = false;
+                }
+
                 // Read accelerometer data and send to Biometric Sensor Hub
                 if (readAccelerometerFlag) {
                     if(!Lis3dh_getNumUnreadSamples(&numAccelerometerSamples)) {
@@ -334,7 +351,7 @@ static bool Sensors_initDevices() {
 
     // Initialize LIS3DH accelerometer
     Log_info0("Initializing LIS3DH");
-    if (!Lis3dh_init()) {
+    if (!Lis3dh_init(Sensors_freeFallSwiFxn)) {
         Log_error0("Failed to initialize LIS3DH");
         return false;
     }
@@ -423,6 +440,19 @@ static void Sensors_heartRateReadSwiFxn(UArg a0) {
     readHeartRateFlag = true;
     Semaphore_post(swiSemaphore);
 }
+
+/*********************************************************************
+ * @fn      Sensors_freeFallSwiFxn
+ *
+ * @brief   Callback for free-fall interrupts.
+ *
+ * @param   a0 - not used.
+ */
+static void Sensors_freeFallSwiFxn(UArg a0) {
+    freeFallInterruptFlag = true;
+    Semaphore_post(swiSemaphore);
+}
+
 
 /*********************************************************************
  * @fn     Sensors_enqueueMsg

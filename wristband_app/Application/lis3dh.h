@@ -29,9 +29,10 @@ typedef struct {
 /*********************************************************************
  * FUNCTIONS
  */
-extern bool Lis3dh_init(void);
+extern bool Lis3dh_init(void *isr_fxn);
 extern bool Lis3dh_getNumUnreadSamples(int *num_samples);
 extern bool Lis3dh_readSensorData(sensor_data_t *data, int numSamples);
+extern bool Lis3dh_clearInterrupts();
 
 extern void Lis3dh_printSample(sensor_data_t data);
 
