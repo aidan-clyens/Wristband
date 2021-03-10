@@ -111,8 +111,8 @@ static bool Lis3dh_readRegisterRegion(uint8_t regAddress, int length, uint8_t *d
  */
 bool Lis3dh_init(void) {
     // Set data rate
-    if (Lis3dh_configureDataRate(DATARATE_25HZ)) {
-        Log_info0("Set data rate to 25Hz");
+    if (Lis3dh_configureDataRate(DATARATE_100HZ)) {
+        Log_info0("Set data rate to 100Hz");
     }
     else {
         Log_error0("Error setting data rate");
@@ -236,7 +236,6 @@ static bool Lis3dh_writeRegister(uint8_t regAddress, uint8_t data) {
     transaction.readCount  = 0;
 
     if (Util_i2cTransfer(&transaction)) {
-        Log_info0("I2C transfer successful");
         return true;
     }
     else {
@@ -266,7 +265,6 @@ static bool Lis3dh_readRegister(uint8_t regAddress, uint8_t *data) {
     transaction.readCount  = 1;
 
     if (Util_i2cTransfer(&transaction)) {
-        Log_info0("I2C transfer successful");
         (*data) = rxBuffer[0];
         return true;
     }
@@ -299,7 +297,6 @@ static bool Lis3dh_readRegisterRegion(uint8_t regAddress, int length, uint8_t *d
     transaction.readCount  = length;
 
     if (Util_i2cTransfer(&transaction)) {
-        Log_info0("I2C transfer successful");
         return true;
     }
     else {

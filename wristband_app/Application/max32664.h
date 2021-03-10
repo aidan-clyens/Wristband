@@ -16,7 +16,8 @@ extern "C"
 /*********************************************************************
  * CONSTANTS
  */
-#define MAX32664_NORMAL_REPORT_ALGORITHM_ONLY_SIZE      20
+#define MAX32664_MAXIMFAST_REPORT_ALGO_SIZE     6
+#define MAX32664_FIFO_THRESHOLD                 10
 
 /*********************************************************************
  * TYPEDEFS
@@ -50,11 +51,13 @@ typedef enum {
  * FUNCTIONS
  */
 // MAX32664 commands
-extern bool Max32664_initApplicationMode();
-extern bool Max32664_initHeartRateAlgorithm();
+extern max32664_status_t Max32664_initApplicationMode(void *isr_fxn);
+extern max32664_status_t Max32664_initMaximFastAlgorithm();
+
+extern max32664_status_t Max32664_readSensorHubStatus(uint8_t *status);
 extern max32664_status_t Max32664_readFifoNumSamples(uint8_t *num_samples);
-extern bool Max32664_readHeartRate(heartrate_data_t reports[], int *num_reports);
-extern bool Max32664_writeInputFifo(uint8_t *data, int size_data);
+extern max32664_status_t Max32664_readHeartRate(heartrate_data_t *reports, int num_reports);
+extern max32664_status_t Max32664_writeInputFifo(uint8_t *data, int num_bytes);
 
 #ifdef __cplusplus
 }

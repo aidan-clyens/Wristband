@@ -84,7 +84,7 @@ static bool readHeartRateFlag;
 // Semaphores
 static Semaphore_Handle swiSemaphore;
 
-static uint8_t accelerometerSamplesBytes[SENSORS_NUM_ACCELEROMETER_SAMPLES * SENSORS_ACCELEROMETER_SAMPLE_SIZE + 2];
+static uint8_t accelerometerSamplesBytes[SENSORS_NUM_ACCELEROMETER_SAMPLES * SENSORS_ACCELEROMETER_SAMPLE_SIZE];
 
 static sensors_task_state_t sensorsTaskState;
 
@@ -133,10 +133,6 @@ static void Sensors_init(void) {
     // Register application with ICall
     ICall_registerApp(&selfEntity, &syncEvent);
 
-    // Initialize GPIO pins
-    GPIO_setConfig(Board_GPIO_MAX32664_MFIO, GPIO_CFG_OUT_STD | GPIO_CFG_OUT_LOW);
-    GPIO_setConfig(Board_GPIO_MAX32664_RESET, GPIO_CFG_OUT_STD | GPIO_CFG_OUT_HIGH);
-
     // Initialize I2C
     if (!Util_i2cInit()) {
         Log_error0("I2C failed to initialize");
@@ -162,15 +158,6 @@ static void Sensors_init(void) {
             NULL
     );
     readAccelerometerFlag = false;
-
-    heartRateReadClockHandle = Util_constructClock(
-            &heartRateReadClock,
-            Sensors_heartRateReadSwiFxn,
-            SENSORS_HEART_RATE_POLLING_PERIOD_MS,
-            SENSORS_HEART_RATE_POLLING_PERIOD_MS,
-            0,
-            NULL
-    );
     readHeartRateFlag = false;
 
     sensorsTaskState = STATE_UNINITIALIZED;
@@ -189,8 +176,12 @@ static void Sensors_init(void) {
 static void Sensors_taskFxn(UArg a0, UArg a1) {
     Sensors_init();
 
-    int numReports;
+    max32664_status_t ret;
+    uint8_t max32664Status;
+
+    uint8_t numReports;
     int numAccelerometerSamples;
+
     sensor_data_t accelerometerSamples[SENSORS_NUM_ACCELEROMETER_SAMPLES];
     heartrate_data_t reports[32];
 
@@ -201,29 +192,21 @@ static void Sensors_taskFxn(UArg a0, UArg a1) {
                 Semaphore_pend(swiSemaphore, BIOS_WAIT_FOREVER);
                 // Read accelerometer data and send to Biometric Sensor Hub
                 if (readAccelerometerFlag) {
-                    Log_info0("Read from Accelerometer");
-
                     if(!Lis3dh_getNumUnreadSamples(&numAccelerometerSamples)) {
                         Log_error0("Error getting unread number of accelerometer samples");
                         sensorsTaskState = STATE_UNINITIALIZED;
                     }
-                    else {
-                        Log_info1("%d unread accelerometer samples", numAccelerometerSamples);
-                    }
-
                     if (numAccelerometerSamples >= SENSORS_NUM_ACCELEROMETER_SAMPLES) {
+                        Log_info1("Accelerometer Samples: %d", numAccelerometerSamples);
                         // Read samples from accelerometer
                         if (!Lis3dh_readSensorData(accelerometerSamples, SENSORS_NUM_ACCELEROMETER_SAMPLES)) {
                             Log_error0("Error reading accelerometer samples");
                             sensorsTaskState = STATE_UNINITIALIZED;
                         }
                         else {
-                            Log_info1("Read %d accelerometer samples", SENSORS_NUM_ACCELEROMETER_SAMPLES);
-                            for (int i = 0; i < SENSORS_NUM_ACCELEROMETER_SAMPLES; i++) {
-                                Lis3dh_printSample(accelerometerSamples[i]);
-                            }
+//                            Log_info1("Writing %d accelerometer samples to the MAX32664", SENSORS_NUM_ACCELEROMETER_SAMPLES);
                             // Write samples to MAX32664
-                            Sensors_sendAccelerometerSamples(accelerometerSamples);
+//                            Sensors_sendAccelerometerSamples(accelerometerSamples);
                         }
                     }
 
@@ -232,22 +215,46 @@ static void Sensors_taskFxn(UArg a0, UArg a1) {
 
                 // Read heart rate and SpO2 data
                 if (readHeartRateFlag) {
-                    Log_info0("Read Heart Rate");
+                    // Check MAX32664 status
+                    ret = Max32664_readSensorHubStatus(&max32664Status);
+                    if (ret == STATUS_SUCCESS) {
+                        // Get number of available FIFO reports
+                        ret = Max32664_readFifoNumSamples(&numReports);
+                        Log_info1("Heart Rate Reports: %d", numReports);
+                        if (ret == STATUS_SUCCESS) {
+                            // Read reports from MAX32664
+                            ret = Max32664_readHeartRate(reports, MAX32664_FIFO_THRESHOLD);
+                            if (ret == STATUS_SUCCESS) {
+                                int maxHeartRateConfidence = 0;
+                                int bestReportIndex = -1;
+                                // Find the most accurate heart rate reading
+                                for (int i = 0; i < MAX32664_FIFO_THRESHOLD; i++) {
+                                    if (reports[i].scdState == 3 && reports[i].heartRateConfidence != 0) {
+                                        if (reports[i].heartRateConfidence > maxHeartRateConfidence) {
+                                            maxHeartRateConfidence = reports[i].heartRateConfidence;
+                                            bestReportIndex = i;
+                                        }
+                                    }
+                                }
 
-                    // Read report from MAX32664
-                    if (Max32664_readHeartRate(reports, &numReports)) {
-                        Log_info1("Read %d reports", numReports);
-                        for (int i = 0; i < numReports; i++) {
-                            Log_info2("HR: %d, HR confidence: %d", reports[i].heartRate, reports[i].heartRateConfidence);
-                            Log_info2("SpO2: %d, SpO2 confidence: %d", reports[i].spO2, reports[i].spO2Confidence);
-                            Log_info1("SCD state: %d", reports[i].scdState);
+                                // Update heart rate data using the most accurate reading
+                                if (bestReportIndex > 0) {
+                                    if (reports[bestReportIndex].scdState == 3 && reports[bestReportIndex].heartRateConfidence != 0) {
+                                        Log_info2("HR: %d, HR confidence: %d", reports[bestReportIndex].heartRate, reports[bestReportIndex].heartRateConfidence);
+                                        Log_info2("SpO2: %d, SpO2 confidence: %d", reports[bestReportIndex].spO2, reports[bestReportIndex].spO2Confidence);
+                                        Log_info1("SCD state: %d", reports[bestReportIndex].scdState);
 
-                            // Queue report to be processed
-                            heartrate_data_t heartRateData = reports[i];
-                            Sensors_updateHeartRateData(heartRateData);
+                                        // Queue report to be processed
+                                        heartrate_data_t heartRateData = reports[bestReportIndex];
+                                        Sensors_updateHeartRateData(heartRateData);
+                                    }
+                                }
+                            }
                         }
                     }
-                    else {
+
+                    // If any errors occurred, reinitialize sensors
+                    if (ret != STATUS_SUCCESS) {
                         sensorsTaskState = STATE_UNINITIALIZED;
                     }
 
@@ -310,11 +317,18 @@ static void Sensors_processApplicationMessage(sensors_msg_t *pMsg) {
     }
 }
 
+/*********************************************************************
+ * @fn      Sensors_initDevices
+ *
+ * @brief   Initialize MAX32664 and LIS3DH devices.
+ */
 static bool Sensors_initDevices() {
     // Start MAX32664 in Application Mode
+    max32664_status_t ret;
     Log_info0("Initializing MAX32664 in Application Mode");
-    if (!Max32664_initApplicationMode()) {
-        Log_error0("Failed to initialize MAX32664 in Application Mode");
+    ret = Max32664_initApplicationMode(Sensors_heartRateReadSwiFxn);
+    if (ret != STATUS_SUCCESS) {
+        Log_error1("Failed to initialize MAX32664 in Application Mode (Error: %d)", ret);
         return false;
     }
 
@@ -327,14 +341,14 @@ static bool Sensors_initDevices() {
 
     // Start MAX32664 Heart Rate Algorithm
     Log_info0("Initializing MAX32664 Heart Rate Algorithm");
-    if (!Max32664_initHeartRateAlgorithm()) {
-        Log_error0("Error initializing MAX32664 Heart Rate Algorithm");
+    ret = Max32664_initMaximFastAlgorithm();
+    if (ret != STATUS_SUCCESS) {
+        Log_error1("Error initializing MAX32664 Heart Rate Algorithm (Error: %d)", ret);
         return false;
     }
 
     // Start clocks
     Util_startClock(&accelerometerReadClock);
-    Util_startClock(&heartRateReadClock);
 
     Log_info0("Sensors initialized");
 
@@ -367,21 +381,22 @@ static void Sensors_updateHeartRateData(heartrate_data_t heartRateData) {
 static void Sensors_sendAccelerometerSamples(sensor_data_t samples[]) {
     int index = 0;
     for (int i = 0; i < SENSORS_NUM_ACCELEROMETER_SAMPLES; i++) {
-        accelerometerSamplesBytes[index+2] = samples[i].x_L;
-        accelerometerSamplesBytes[index+1+2] = samples[i].x_H;
-        accelerometerSamplesBytes[index+2+2] = samples[i].y_L;
-        accelerometerSamplesBytes[index+3+2] = samples[i].y_H;
-        accelerometerSamplesBytes[index+4+2] = samples[i].z_L;
-        accelerometerSamplesBytes[index+5+2] = samples[i].z_H;
+        accelerometerSamplesBytes[index] = samples[i].x_L;
+        accelerometerSamplesBytes[index+1] = samples[i].x_H;
+        accelerometerSamplesBytes[index+2] = samples[i].y_L;
+        accelerometerSamplesBytes[index+3] = samples[i].y_H;
+        accelerometerSamplesBytes[index+4] = samples[i].z_L;
+        accelerometerSamplesBytes[index+5] = samples[i].z_H;
 
         index += SENSORS_ACCELEROMETER_SAMPLE_SIZE;
     }
 
-    if(Max32664_writeInputFifo(accelerometerSamplesBytes, SENSORS_NUM_ACCELEROMETER_SAMPLES * SENSORS_ACCELEROMETER_SAMPLE_SIZE + 2)) {
-        Log_info0("Sent 5 accelerometer samples to MAX32664");
+    max32664_status_t ret = Max32664_writeInputFifo(accelerometerSamplesBytes, SENSORS_NUM_ACCELEROMETER_SAMPLES * SENSORS_ACCELEROMETER_SAMPLE_SIZE);
+    if (ret != STATUS_SUCCESS) {
+        Log_error1("Error sending accelerometer samples to MAX32664 (Error: %d)", ret);
     }
     else {
-        Log_error0("Error sending accelerometer samples to MAX32664");
+        Log_info1("Sent %d accelerometer samples to MAX32664", SENSORS_NUM_ACCELEROMETER_SAMPLES);
     }
 }
 
