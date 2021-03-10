@@ -10,8 +10,6 @@
  */
 #include <ti/drivers/I2C.h>
 
-#include <ti/sysbios/gates/GateMutex.h>
-
 #include <uartlog/UartLog.h>
 #include <Board.h>
 
@@ -38,8 +36,6 @@
  */
 static I2C_Handle i2cHandle;
 
-static GateMutex_Handle i2cGate;
-static int gateKey;
 
 /*********************************************************************
  * PUBLIC FUNCTIONS
@@ -65,8 +61,6 @@ bool Util_i2cInit(void) {
         return false;
     }
 
-    i2cGate = GateMutex_create(NULL, 0);
-
     Log_info0("I2C initialized");
     return true;
 }
@@ -79,12 +73,6 @@ bool Util_i2cInit(void) {
  * @param   transaction - I2C transaction containing read buffer and write buffer
  */
 bool Util_i2cTransfer(I2C_Transaction *transaction) {
-    bool result;
-
-    gateKey = GateMutex_enter(i2cGate);
-    result = I2C_transfer(i2cHandle, transaction);
-    GateMutex_leave(i2cGate, gateKey);
-
-    return result;
+    return I2C_transfer(i2cHandle, transaction);
 }
 
