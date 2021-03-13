@@ -25,7 +25,6 @@ typedef struct {
 // Event types
 typedef enum {
     SENSORS_INIT_HEARTRATE_MODE,
-    SENSORS_INIT_ECG_MODE,
     SENSORS_TRIGGER_ALERT
 } sensors_event_t;
 

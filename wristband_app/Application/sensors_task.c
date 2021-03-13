@@ -38,7 +38,6 @@
 
 // Clocks
 #define SENSORS_ACCELEROMETER_POLLING_PERIOD_MS         200    // Change to 200 ms
-#define SENSORS_HEART_RATE_POLLING_PERIOD_MS            40      // Change to 40 ms
 
 // Data
 #define SENSORS_NUM_ACCELEROMETER_SAMPLES               5
@@ -77,8 +76,6 @@ static Clock_Struct accelerometerReadClock;
 static Clock_Handle accelerometerReadClockHandle;
 static bool readAccelerometerFlag;
 
-static Clock_Struct heartRateReadClock;
-static Clock_Handle heartRateReadClockHandle;
 static bool readHeartRateFlag;
 
 static bool freeFallInterruptFlag;
@@ -315,15 +312,10 @@ static void Sensors_processApplicationMessage(sensors_msg_t *pMsg) {
         case SENSORS_INIT_HEARTRATE_MODE:
             // Stop clocks
             Util_stopClock(&accelerometerReadClock);
-            Util_stopClock(&heartRateReadClock);
 
             if (Sensors_initDevices()) {
                 sensorsTaskState = STATE_RUNNING;
             }
-            break;
-        case SENSORS_INIT_ECG_MODE:
-            break;
-        case SENSORS_TRIGGER_ALERT:
             break;
         default:
             break;

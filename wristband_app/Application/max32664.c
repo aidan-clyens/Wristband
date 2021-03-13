@@ -36,10 +36,6 @@
  */
 #define MAX32664_REPORT_PERIOD_MS           2*40  // Change to 2*40 ms
 
-// Heart rate constants
-#define MAX32664_LOW_HEARTRATE              70
-#define MAX32664_HIGH_HEARTRATE             150
-
 // I2C
 #define MAX32664_ADDRESS                    0x55
 #define MAX32664_CMD_DELAY                  6
@@ -311,16 +307,6 @@ max32664_status_t Max32664_readSensorHubStatus(uint8_t *status) {
  */
 static max32664_status_t Max32664_setOutputMode(uint8_t output_mode) {
     return Max32664_writeByte(MAX32664_SET_OUTPUT_MODE, 0x00, output_mode, MAX32664_CMD_DELAY);
-}
-
-
-/*********************************************************************
- * @fn      Max32664_readOutputMode
- *
- * @brief   Read current output mode of the Biometric Sensor Hub.
- */
-static max32664_status_t Max32664_readOutputMode(uint8_t *data) {
-    return Max32664_readByte(MAX32664_READ_OUTPUT_MODE, 0x00, data);
 }
 
 /*********************************************************************

@@ -98,24 +98,22 @@ typedef enum {
 /*********************************************************************
  * LOCAL VARIABLES
  */
-// I2C
-static I2C_Transaction transaction;
+// SPI
+static SPI_Handle      masterSpi;
+static SPI_Transaction spiTransaction;
 
 /*********************************************************************
  * LOCAL FUNCTIONS
  */
 static bool Lis3dh_configureDataRate(data_rate_t dataRate);
 static bool Lis3dh_setLowPowerMode(bool enable);
-static bool Lis3dh_setHighResolutionMode(bool enable);
 static bool Lis3dh_setFifoMode(fifo_mode_t fifoMode);
 static bool Lis3dh_enableFifo(bool enable);
-static bool Lis3dh_isFifoFull(bool *full);
-static bool Lis3dh_isFifoEmpty(bool *empty);
 static bool Lis3dh_getFullScaleSelection(int *scale);
 
 static bool Lis3dh_configureFreeFallInterrupt(bool enable, float threshold, int duration);
 
-// I2C
+// Helper functions
 static bool Lis3dh_writeRegister(uint8_t regAddress, uint8_t data);
 static bool Lis3dh_readRegister(uint8_t regAddress, uint8_t *data);
 static bool Lis3dh_readRegisterRegion(uint8_t regAddress, int length, uint8_t *data);
@@ -433,44 +431,6 @@ static bool Lis3dh_enableFifo(bool enable) {
     if (enable) ctrl_reg5_data |= LIS3DH_FIFO_ENABLE_MASK;
 
     return Lis3dh_writeRegister(LIS3DH_CTRL_REG5, ctrl_reg5_data);
-}
-
-/*********************************************************************
- * @fn      Lis3dh_isFifoFull
- *
- * @brief   Check if the LIS3DH FIFO is full.
- *
- * @param   full - Boolean indicating whether the FIFO is full or not.
- */
-static bool Lis3dh_isFifoFull(bool *full) {
-    uint8_t fifo_src_reg_data;
-
-    if (!Lis3dh_readRegister(LIS3DH_FIFO_SRC_REG, &fifo_src_reg_data)) {
-        return false;
-    }
-
-    (*full) = (fifo_src_reg_data & LIS3DH_FIFO_OVRN_MASK) > 0;
-
-    return true;
-}
-
-/*********************************************************************
- * @fn      Lis3dh_isFifoEmpty
- *
- * @brief   Check if the LIS3DH FIFO is empty.
- *
- * @param   empty - Boolean indicating whether the FIFO is empty or not.
- */
-static bool Lis3dh_isFifoEmpty(bool *empty) {
-    uint8_t fifo_src_reg_data;
-
-    if (!Lis3dh_readRegister(LIS3DH_FIFO_SRC_REG, &fifo_src_reg_data)) {
-        return false;
-    }
-
-    (*empty) = (fifo_src_reg_data & LIS3DH_FIFO_EMPTY_MASK) > 0;
-
-    return true;
 }
 
 /*********************************************************************
