@@ -83,9 +83,11 @@ static bool freeFallInterruptFlag;
 // Semaphores
 static Semaphore_Handle swiSemaphore;
 
+// Application
 static uint8_t accelerometerSamplesBytes[SENSORS_NUM_ACCELEROMETER_SAMPLES * SENSORS_ACCELEROMETER_SAMPLE_SIZE];
 
 static sensors_task_state_t sensorsTaskState;
+static uint8_t currentScdState;
 
 /*********************************************************************
  * LOCAL FUNCTIONS
@@ -243,6 +245,14 @@ static void Sensors_taskFxn(UArg a0, UArg a1) {
                                 int bestReportIndex = -1;
                                 // Find the most accurate heart rate reading
                                 for (int i = 0; i < MAX32664_FIFO_THRESHOLD; i++) {
+                                    // If SCD state changed, update
+                                    if (reports[i].scdState != currentScdState) {
+                                        Log_info1("SCD state: %d", reports[i].scdState);
+                                        currentScdState = reports[i].scdState;
+                                        ProjectZero_valueChangeHandler(DATA_SCD_STATE, &currentScdState);
+                                    }
+
+                                    // Check for non-zero heart rate measurements
                                     if (reports[i].scdState == 3 && reports[i].heartRateConfidence != 0) {
                                         if (reports[i].heartRateConfidence > maxHeartRateConfidence) {
                                             maxHeartRateConfidence = reports[i].heartRateConfidence;
@@ -361,6 +371,7 @@ static bool Sensors_initDevices() {
 
     Log_info0("Sensors initialized");
 
+    currentScdState = -1;
     return true;
 }
 
@@ -387,6 +398,13 @@ static void Sensors_updateHeartRateData(heartrate_data_t heartRateData) {
     ProjectZero_valueChangeHandler(DATA_SCD_STATE, &heartRateData.scdState);
 }
 
+/*********************************************************************
+ * @fn      Sensors_sendAccelerometerSamples
+ *
+ * @brief   Send accelerometer samples to the MAX32664 Biometric Sensor hub.
+ *
+ * @param   samples - An array of accelerometer samples.
+ */
 static void Sensors_sendAccelerometerSamples(sensor_data_t samples[]) {
     int index = 0;
     for (int i = 0; i < SENSORS_NUM_ACCELEROMETER_SAMPLES; i++) {
