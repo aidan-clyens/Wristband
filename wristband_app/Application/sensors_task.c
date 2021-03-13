@@ -184,7 +184,7 @@ static void Sensors_taskFxn(UArg a0, UArg a1) {
     int numAccelerometerSamples;
 
     sensor_data_t accelerometerSamples[SENSORS_NUM_ACCELEROMETER_SAMPLES];
-    heartrate_data_t reports[32];
+    heartrate_data_t reports[MAX32664_FIFO_THRESHOLD];
 
     for (;;) {
         switch (sensorsTaskState) {
