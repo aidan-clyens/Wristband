@@ -125,6 +125,7 @@
 #define PZ_START_ADV_EVT         7  /* Request advertisement start from task ctx   */
 #define PZ_SEND_PARAM_UPD_EVT    8  /* Request parameter update req be sent        */
 #define PZ_CONN_EVT              9  /* Connection Event End notice                 */
+#define PZ_UPDATE_RSSI_EVT       10 /* Update RSSI of connected devices            */
 
 // General discoverable mode: advertise indefinitely
 #define DEFAULT_DISCOVERABLE_MODE             GAP_ADTYPE_FLAGS_GENERAL
@@ -152,6 +153,9 @@
 
 // Delay (in ms) after connection establishment before sending a parameter update requst
 #define PZ_SEND_PARAM_UPDATE_DELAY            6000
+
+// Period to update RSSI of connected device
+#define PZ_RSSI_UPDATE_PERIOD                 5000
 
 /*********************************************************************
  * TYPEDEFS
@@ -353,6 +357,11 @@ static Clock_Struct button1DebounceClock;
 static Clock_Handle button0DebounceClockHandle;
 static Clock_Handle button1DebounceClockHandle;
 
+// Clock object for updating RSSI
+static Clock_Struct rssiUpdateClock;
+static Clock_Handle rssiUpdateClockHandle;
+
+
 // State of the buttons
 static uint8_t button0State = 0;
 static uint8_t button1State = 0;
@@ -379,7 +388,7 @@ static void ProjectZero_processAdvEvent(pzGapAdvEventData_t *pEventData);
 
 /* Profile value change handlers */
 static void ProjectZero_updateCharVal(pzCharacteristicData_t *pCharData);
-// TODO
+
 // Declaration of service callback handlers
 static void ProjectZero_emergencyAlertServiceValueChangeCB(uint16_t connHandle, uint16_t svcUuid,
                                       uint8_t paramID,
@@ -418,6 +427,9 @@ static void buttonDebounceSwiFxn(UArg buttonId);
 static void buttonCallbackFxn(PIN_Handle handle,
                               PIN_Id pinId);
 static void ProjectZero_handleButtonPress(pzButtonState_t *pState);
+
+/* RSSI update callback */
+static void rssiUpdateSwi();
 
 /* Utility functions */
 static status_t ProjectZero_enqueueMsg(uint8_t event,
@@ -642,6 +654,14 @@ static void ProjectZero_init(void)
                                                      0,
                                                      Board_PIN_BUTTON1);
 
+    // Create the clock object for updating RSSI
+    rssiUpdateClockHandle = Util_constructClock(&rssiUpdateClock,
+                                                rssiUpdateSwi,
+                                                PZ_RSSI_UPDATE_PERIOD,
+                                                PZ_RSSI_UPDATE_PERIOD,
+                                                1,
+                                                0);
+
     // Set the Device Name characteristic in the GAP GATT Service
     // For more information, see the section in the User's Guide:
     // http://software-dl.ti.com/lprf/ble5stack-latest/
@@ -696,8 +716,7 @@ static void ProjectZero_init(void)
     // can generate events (writes received) to the application
 
     // Placeholder variable for characteristic intialization
-    uint8_t initVal[40] = {0};
-    uint8_t initString[] = "This is a pretty long string, isn't it!";
+    uint8_t initVal[1] = {0};
 
     // Initialization of characteristics in heartrate_service that are readable.
     Heartrate_service_SetParameter(HEARTRATE_SERVICE_HEARTRATEVALUE_ID, HEARTRATE_SERVICE_HEARTRATEVALUE_LEN, initVal);
@@ -1001,6 +1020,19 @@ static void ProjectZero_processApplicationMessage(pzMsg_t *pMsg)
         ProjectZero_processConnEvt((Gap_ConnEventRpt_t *)(pMsg->pData));
         break;
 
+      case PZ_UPDATE_RSSI_EVT:
+      {
+          Log_info0("Read RSSI");
+
+          for(int i = 0; i < MAX_NUM_BLE_CONNS; i++)
+          {
+              if (connList[i].connHandle != CONNHANDLE_ALL) {
+                  HCI_ReadRssiCmd(connList[i].connHandle);
+              }
+          }
+      }
+      break;
+
       default:
         break;
     }
@@ -1127,6 +1159,8 @@ static void ProjectZero_processGapMessage(gapEventHdr_t *pMsg)
             Log_info1("Connected. Peer address: " \
                         ANSI_COLOR(FG_GREEN)"%s"ANSI_COLOR(ATTR_RESET),
                       (uintptr_t)addrStr);
+
+            // Save connHandle
 
             // Initialize sensors
             Sensors_enqueueMsg(SENSORS_INIT_HEARTRATE_MODE, NULL);
@@ -1444,6 +1478,9 @@ static void ProjectZero_processCmdCompleteEvt(hciEvt_CmdComplete_t *pMsg)
             Log_info2("RSSI:%d, connHandle %d",
                       (uint32_t)(rssi),
                       (uint32_t)handle);
+
+            // TODO: Update RSSI value
+
         } // end of if (status == SUCCESS)
         break;
     }
@@ -2118,6 +2155,16 @@ static void buttonCallbackFxn(PIN_Handle handle, PIN_Id pinId)
         Util_startClock((Clock_Struct *)button1DebounceClockHandle);
         break;
     }
+}
+
+/*********************************************************************
+ * @fn     rssiUpdateSwi
+ *
+ * @brief  Callback to update RSSI value of connected device.
+ */
+static void rssiUpdateSwi()
+{
+    ProjectZero_enqueueMsg(PZ_UPDATE_RSSI_EVT, NULL);
 }
 
 /******************************************************************************
