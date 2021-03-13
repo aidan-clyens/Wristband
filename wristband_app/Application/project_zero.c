@@ -75,6 +75,7 @@
 
 /* Bluetooth Profiles */
 #include <devinfoservice.h>
+#include <services/config_service.h>
 #include <services/heartrate_service.h>
 #include <services/emergency_alert_service.h>
 
@@ -709,6 +710,7 @@ static void ProjectZero_init(void)
     DevInfo_AddService();                      // Device Information Service
 
     // TODO: Add services to GATT server and give ID of this task for Indication acks.
+    Config_service_AddService( selfEntity );
     Heartrate_service_AddService( selfEntity );
     Emergency_alert_service_AddService( selfEntity );
 
@@ -718,6 +720,9 @@ static void ProjectZero_init(void)
     // Placeholder variable for characteristic intialization
     uint8_t initVal[1] = {0};
 
+    // Initialization of characteristics in config_service that are readable.
+    Config_service_SetParameter(CONFIG_SERVICE_RSSI_ID, CONFIG_SERVICE_RSSI_LEN, initVal);
+
     // Initialization of characteristics in heartrate_service that are readable.
     Heartrate_service_SetParameter(HEARTRATE_SERVICE_HEARTRATEVALUE_ID, HEARTRATE_SERVICE_HEARTRATEVALUE_LEN, initVal);
     Heartrate_service_SetParameter(HEARTRATE_SERVICE_HEARTRATECONFIDENCE_ID, HEARTRATE_SERVICE_HEARTRATECONFIDENCE_LEN, initVal);
@@ -725,6 +730,7 @@ static void ProjectZero_init(void)
     Heartrate_service_SetParameter(HEARTRATE_SERVICE_SPO2CONFIDENCE_ID, HEARTRATE_SERVICE_SPO2CONFIDENCE_LEN, initVal);
     Heartrate_service_SetParameter(HEARTRATE_SERVICE_SCDSTATE_ID, HEARTRATE_SERVICE_SCDSTATE_LEN, initVal);
 
+    // Initialization of characteristics in emergency_alert_service that are readable.
     Emergency_alert_service_SetParameter(EMERGENCY_ALERT_SERVICE_ALERTTYPE_ID, EMERGENCY_ALERT_SERVICE_ALERTTYPE_LEN, initVal);
     Emergency_alert_service_SetParameter(EMERGENCY_ALERT_SERVICE_ALERTACTIVE_ID, EMERGENCY_ALERT_SERVICE_ALERTACTIVE_LEN, initVal);
 
@@ -1479,7 +1485,17 @@ static void ProjectZero_processCmdCompleteEvt(hciEvt_CmdComplete_t *pMsg)
                       (uint32_t)(rssi),
                       (uint32_t)handle);
 
-            // TODO: Update RSSI value
+            // Update RSSI value
+            pzCharacteristicData_t *charData = ICall_malloc(sizeof(pzCharacteristicData_t));
+            charData->svcUUID = CONFIG_SERVICE_SERV_UUID;
+            charData->paramID = CONFIG_SERVICE_RSSI_ID;
+            charData->dataLen = CONFIG_SERVICE_RSSI_LEN;
+            memcpy(charData->data, (uint8_t*)&rssi, charData->dataLen);
+
+            if(ProjectZero_enqueueMsg(PZ_UPDATE_CHARVAL_EVT, charData) != SUCCESS)
+            {
+              ICall_free(charData);
+            }
 
         } // end of if (status == SUCCESS)
         break;
@@ -2213,6 +2229,10 @@ static void ProjectZero_updateCharVal(pzCharacteristicData_t *pCharData)
 {
     switch(pCharData->svcUUID)
     {
+    case CONFIG_SERVICE_SERV_UUID:
+        Config_service_SetParameter(pCharData->paramID, pCharData->dataLen,
+                                               pCharData->data);
+        break;
     case HEARTRATE_SERVICE_SERV_UUID:
         Heartrate_service_SetParameter(pCharData->paramID, pCharData->dataLen,
                                        pCharData->data);
