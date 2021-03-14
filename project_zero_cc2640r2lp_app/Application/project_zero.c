@@ -645,17 +645,31 @@ static void ProjectZero_init(void)
   uint8_t initVal[40] = {0};
   uint8_t initString[] = "This is a pretty long string, isn't it!";
 
-  // Initalization of characteristics in LED_Service that can provide data.
+  // Initialization of characteristics in LED_Service that can provide data.
   LedService_SetParameter(LS_LED0_ID, LS_LED0_LEN, initVal);
   LedService_SetParameter(LS_LED1_ID, LS_LED1_LEN, initVal);
 
-  // Initalization of characteristics in Button_Service that can provide data.
+  // Initialization of characteristics in Button_Service that can provide data.
   ButtonService_SetParameter(BS_BUTTON0_ID, BS_BUTTON0_LEN, initVal);
   ButtonService_SetParameter(BS_BUTTON1_ID, BS_BUTTON1_LEN, initVal);
 
-  // Initalization of characteristics in Data_Service that can provide data.
+  // Initialization of characteristics in Data_Service that can provide data.
   DataService_SetParameter(DS_STRING_ID, sizeof(initString), initString);
   DataService_SetParameter(DS_STREAM_ID, DS_STREAM_LEN, initVal);
+
+  // Initialization of characteristics in Config Service that can provide data.
+  Config_service_SetParameter(CONFIG_SERVICE_RSSI_ID, CONFIG_SERVICE_RSSI_LEN, initVal);
+
+  // Initialization of characteristics in Heartrate Service that can provide data.
+  Heartrate_service_SetParameter(HEARTRATE_SERVICE_HEARTRATEVALUE_ID, HEARTRATE_SERVICE_HEARTRATEVALUE_LEN, initVal);
+  Heartrate_service_SetParameter(HEARTRATE_SERVICE_HEARTRATECONFIDENCE_ID, HEARTRATE_SERVICE_HEARTRATECONFIDENCE_LEN, initVal);
+  Heartrate_service_SetParameter(HEARTRATE_SERVICE_SPO2VALUE_ID, HEARTRATE_SERVICE_SPO2VALUE_LEN, initVal);
+  Heartrate_service_SetParameter(HEARTRATE_SERVICE_SPO2CONFIDENCE_ID, HEARTRATE_SERVICE_SPO2CONFIDENCE_LEN, initVal);
+  Heartrate_service_SetParameter(HEARTRATE_SERVICE_SCDSTATE_ID, HEARTRATE_SERVICE_SCDSTATE_LEN, initVal);
+
+  // Initialization of characteristics in Emergency Alert Service that can provide data.
+  Emergency_alert_service_SetParameter(EMERGENCY_ALERT_SERVICE_ALERTTYPE_ID, EMERGENCY_ALERT_SERVICE_ALERTTYPE_LEN, initVal);
+  Emergency_alert_service_SetParameter(EMERGENCY_ALERT_SERVICE_ALERTACTIVE_ID, EMERGENCY_ALERT_SERVICE_ALERTACTIVE_LEN, initVal);
 
   // Start the stack in Peripheral mode.
   VOID GAPRole_StartDevice(&user_gapRoleCBs);
