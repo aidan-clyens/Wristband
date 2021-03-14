@@ -76,11 +76,6 @@
 #include "project_zero.h"
 
 // Bluetooth Developer Studio services
-// TODO: Remove old services
-#include "led_service.h"
-#include "button_service.h"
-#include "data_service.h"
-
 #include "config_service.h"
 #include "heartrate_service.h"
 #include "emergency_alert_service.h"
@@ -309,11 +304,6 @@ static void user_service_ValueChangeCB( uint16_t connHandle, uint16_t svcUuid, u
 static void user_service_CfgChangeCB( uint16_t connHandle, uint16_t svcUuid, uint8_t paramID, uint8_t *pValue, uint16_t len );
 
 // Task context handlers for generated services.
-static void user_LedService_ValueChangeHandler(char_data_t *pCharData);
-static void user_ButtonService_CfgChangeHandler(char_data_t *pCharData);
-static void user_DataService_ValueChangeHandler(char_data_t *pCharData);
-static void user_DataService_CfgChangeHandler(char_data_t *pCharData);
-// Add value change handlers for new services
 static void user_Emergency_alert_service_ValueChangeHandler(char_data_t *pCharData);
 
 // Task handler for sending notifications.
@@ -356,31 +346,6 @@ static gapBondCBs_t user_bondMgrCBs =
 /*
  * Callbacks in the user application for events originating from BLE services.
  */
-// LED Service callback handler.
-// The type LED_ServiceCBs_t is defined in led_service.h
-// TODO: Remove old service callbacks
-static LedServiceCBs_t user_LED_ServiceCBs =
-{
-  .pfnChangeCb    = user_service_ValueChangeCB, // Characteristic value change callback handler
-  .pfnCfgChangeCb = NULL, // No notification-/indication enabled chars in LED Service
-};
-
-// Button Service callback handler.
-// The type Button_ServiceCBs_t is defined in button_service.h
-static ButtonServiceCBs_t user_Button_ServiceCBs =
-{
-  .pfnChangeCb    = NULL, // No writable chars in Button Service, so no change handler.
-  .pfnCfgChangeCb = user_service_CfgChangeCB, // Noti/ind configuration callback handler
-};
-
-// Data Service callback handler.
-// The type Data_ServiceCBs_t is defined in data_service.h
-static DataServiceCBs_t user_Data_ServiceCBs =
-{
-  .pfnChangeCb    = user_service_ValueChangeCB, // Characteristic value change callback handler
-  .pfnCfgChangeCb = user_service_CfgChangeCB, // Noti/ind configuration callback handler
-};
-
 static config_serviceCBs_t user_Config_ServiceCBs =
 {
   .pfnChangeCb    = NULL, // No writable chars in Config Service, so no change handler.
@@ -484,6 +449,8 @@ void ProjectZero_createTask(void)
 
   Task_construct(&przTask, ProjectZero_taskFxn, &taskParams, NULL);
 }
+
+// TODO: Create emergency alert function
 
 /*
  * @brief   Called before the task loop and contains application-specific
@@ -624,41 +591,18 @@ static void ProjectZero_init(void)
   GGS_SetParameter(GGS_DEVICE_NAME_ATT, GAP_DEVICE_NAME_LEN, attDeviceName);
 
   // Add services to GATT server and give ID of this task for Indication acks.
-  // TODO: Remove old services
-  LedService_AddService( selfEntity );
-  ButtonService_AddService( selfEntity );
-  DataService_AddService( selfEntity );
-
   Config_service_AddService( selfEntity );
   Heartrate_service_AddService( selfEntity );
   Emergency_alert_service_AddService( selfEntity );
 
   // Register callbacks with the generated services that
   // can generate events (writes received) to the application
-  // TODO: Remove old service callbacks
-  LedService_RegisterAppCBs( &user_LED_ServiceCBs );
-  ButtonService_RegisterAppCBs( &user_Button_ServiceCBs );
-  DataService_RegisterAppCBs( &user_Data_ServiceCBs );
-
   Config_service_RegisterAppCBs( &user_Config_ServiceCBs );
   Heartrate_service_RegisterAppCBs( &user_Heartrate_ServiceCBs );
   Emergency_alert_service_RegisterAppCBs( &user_EmergencyAlert_ServiceCBs );
 
   // Placeholder variable for characteristic intialization
-  uint8_t initVal[40] = {0};
-  uint8_t initString[] = "This is a pretty long string, isn't it!";
-
-  // Initialization of characteristics in LED_Service that can provide data.
-  LedService_SetParameter(LS_LED0_ID, LS_LED0_LEN, initVal);
-  LedService_SetParameter(LS_LED1_ID, LS_LED1_LEN, initVal);
-
-  // Initialization of characteristics in Button_Service that can provide data.
-  ButtonService_SetParameter(BS_BUTTON0_ID, BS_BUTTON0_LEN, initVal);
-  ButtonService_SetParameter(BS_BUTTON1_ID, BS_BUTTON1_LEN, initVal);
-
-  // Initialization of characteristics in Data_Service that can provide data.
-  DataService_SetParameter(DS_STRING_ID, sizeof(initString), initString);
-  DataService_SetParameter(DS_STREAM_ID, DS_STREAM_LEN, initVal);
+  uint8_t initVal[1] = {0};
 
   // Initialization of characteristics in Config Service that can provide data.
   Config_service_SetParameter(CONFIG_SERVICE_RSSI_ID, CONFIG_SERVICE_RSSI_LEN, initVal);
@@ -789,12 +733,6 @@ static void user_processApplicationMessage(app_msg_t *pMsg)
     case APP_MSG_SERVICE_WRITE: /* Message about received value write */
       /* Call different handler per service */
       switch(pCharData->svcUUID) {
-        case LED_SERVICE_SERV_UUID:
-          user_LedService_ValueChangeHandler(pCharData);
-          break;
-        case DATA_SERVICE_SERV_UUID:
-          user_DataService_ValueChangeHandler(pCharData);
-          break;
         case EMERGENCY_ALERT_SERVICE_SERV_UUID:
           user_Emergency_alert_service_ValueChangeHandler(pCharData);
           break;
@@ -802,15 +740,6 @@ static void user_processApplicationMessage(app_msg_t *pMsg)
       break;
 
     case APP_MSG_SERVICE_CFG: /* Message about received CCCD write */
-      /* Call different handler per service */
-      switch(pCharData->svcUUID) {
-        case BUTTON_SERVICE_SERV_UUID:
-          user_ButtonService_CfgChangeHandler(pCharData);
-          break;
-        case DATA_SERVICE_SERV_UUID:
-          user_DataService_CfgChangeHandler(pCharData);
-          break;
-      }
       break;
 
    case HCI_BLE_HARDWARE_ERROR_EVENT_CODE:
@@ -965,223 +894,9 @@ static void user_handleButtonPress(button_state_t *pState)
   switch (pState->pinId)
   {
     case Board_BUTTON0:
-      ButtonService_SetParameter(BS_BUTTON0_ID,
-                                 sizeof(pState->state),
-                                 &pState->state);
-      break;
     case Board_BUTTON1:
-      ButtonService_SetParameter(BS_BUTTON1_ID,
-                                 sizeof(pState->state),
-                                 &pState->state);
       break;
     // TODO: Trigger emergency alert
-  }
-}
-
-/*
- * @brief   Handle a write request sent from a peer device.
- *
- *          Invoked by the Task based on a message received from a callback.
- *
- *          When we get here, the request has already been accepted by the
- *          service and is valid from a BLE protocol perspective as well as
- *          having the correct length as defined in the service implementation.
- *
- * @param   pCharData  pointer to malloc'd char write data
- *
- * @return  None.
- */
-void user_LedService_ValueChangeHandler(char_data_t *pCharData)
-{
-  static uint8_t pretty_data_holder[16]; // 5 bytes as hex string "AA:BB:CC:DD:EE"
-  Util_convertArrayToHexString(pCharData->data, pCharData->dataLen,
-                               pretty_data_holder, sizeof(pretty_data_holder));
-
-  switch (pCharData->paramID)
-  {
-    case LS_LED0_ID:
-      Log_info3("Value Change msg: %s %s: %s",
-                (IArg)"LED Service",
-                (IArg)"LED0",
-                (IArg)pretty_data_holder);
-
-      // Do something useful with pCharData->data here
-      // -------------------------
-      // Set the output value equal to the received value. 0 is off, not 0 is on
-      PIN_setOutputValue(ledPinHandle, Board_RLED, pCharData->data[0]);
-      Log_info2("Turning %s %s",
-                (IArg)"\x1b[31mLED0\x1b[0m",
-                (IArg)(pCharData->data[0]?"on":"off"));
-      break;
-
-    case LS_LED1_ID:
-      Log_info3("Value Change msg: %s %s: %s",
-                (IArg)"LED Service",
-                (IArg)"LED1",
-                (IArg)pretty_data_holder);
-
-      // Do something useful with pCharData->data here
-      // -------------------------
-      // Set the output value equal to the received value. 0 is off, not 0 is on
-      PIN_setOutputValue(ledPinHandle, Board_GLED, pCharData->data[0]);
-      Log_info2("Turning %s %s",
-                (IArg)"\x1b[32mLED1\x1b[0m",
-                (IArg)(pCharData->data[0]?"on":"off"));
-      break;
-
-  default:
-    return;
-  }
-}
-
-
-/*
- * @brief   Handle a CCCD (configuration change) write received from a peer
- *          device. This tells us whether the peer device wants us to send
- *          Notifications or Indications.
- *
- * @param   pCharData  pointer to malloc'd char write data
- *
- * @return  None.
- */
-void user_ButtonService_CfgChangeHandler(char_data_t *pCharData)
-{
-#if defined(UARTLOG_ENABLE)
-  // Cast received data to uint16, as that's the format for CCCD writes.
-  uint16_t configValue = *(uint16_t *)pCharData->data;
-  char *configValString;
-
-  // Determine what to tell the user
-  switch(configValue)
-  {
-  case GATT_CFG_NO_OPERATION:
-    configValString = "Noti/Ind disabled";
-    break;
-  case GATT_CLIENT_CFG_NOTIFY:
-    configValString = "Notifications enabled";
-    break;
-  case GATT_CLIENT_CFG_INDICATE:
-    configValString = "Indications enabled";
-    break;
-  }
-#endif
-  switch (pCharData->paramID)
-  {
-    case BS_BUTTON0_ID:
-      Log_info3("CCCD Change msg: %s %s: %s",
-                (IArg)"Button Service",
-                (IArg)"BUTTON0",
-                (IArg)configValString);
-      // -------------------------
-      // Do something useful with configValue here. It tells you whether someone
-      // wants to know the state of this characteristic.
-      // ...
-      break;
-
-    case BS_BUTTON1_ID:
-      Log_info3("CCCD Change msg: %s %s: %s",
-                (IArg)"Button Service",
-                (IArg)"BUTTON1",
-                (IArg)configValString);
-      // -------------------------
-      // Do something useful with configValue here. It tells you whether someone
-      // wants to know the state of this characteristic.
-      // ...
-      break;
-  }
-}
-
-/*
- * @brief   Handle a write request sent from a peer device.
- *
- *          Invoked by the Task based on a message received from a callback.
- *
- *          When we get here, the request has already been accepted by the
- *          service and is valid from a BLE protocol perspective as well as
- *          having the correct length as defined in the service implementation.
- *
- * @param   pCharData  pointer to malloc'd char write data
- *
- * @return  None.
- */
-void user_DataService_ValueChangeHandler(char_data_t *pCharData)
-{
-  // Value to hold the received string for printing via Log, as Log printouts
-  // happen in the Idle task, and so need to refer to a global/static variable.
-  static uint8_t received_string[DS_STRING_LEN] = {0};
-
-  switch (pCharData->paramID)
-  {
-    case DS_STRING_ID:
-      // Do something useful with pCharData->data here
-      // -------------------------
-      // Copy received data to holder array, ensuring NULL termination.
-      memset(received_string, 0, DS_STRING_LEN);
-      memcpy(received_string, pCharData->data, DS_STRING_LEN-1);
-      // Needed to copy before log statement, as the holder array remains after
-      // the pCharData message has been freed and reused for something else.
-      Log_info3("Value Change msg: %s %s: %s",
-                (IArg)"Data Service",
-                (IArg)"String",
-                (IArg)received_string);
-      break;
-
-    case DS_STREAM_ID:
-      Log_info3("Value Change msg: Data Service Stream: %02x:%02x:%02x...",
-                (IArg)pCharData->data[0],
-                (IArg)pCharData->data[1],
-                (IArg)pCharData->data[2]);
-      // -------------------------
-      // Do something useful with pCharData->data here
-      break;
-
-  default:
-    return;
-  }
-}
-
-/*
- * @brief   Handle a CCCD (configuration change) write received from a peer
- *          device. This tells us whether the peer device wants us to send
- *          Notifications or Indications.
- *
- * @param   pCharData  pointer to malloc'd char write data
- *
- * @return  None.
- */
-void user_DataService_CfgChangeHandler(char_data_t *pCharData)
-{
-#if defined(UARTLOG_ENABLE)
-  // Cast received data to uint16, as that's the format for CCCD writes.
-  uint16_t configValue = *(uint16_t *)pCharData->data;
-  char *configValString;
-
-  // Determine what to tell the user
-  switch(configValue)
-  {
-  case GATT_CFG_NO_OPERATION:
-    configValString = "Noti/Ind disabled";
-    break;
-  case GATT_CLIENT_CFG_NOTIFY:
-    configValString = "Notifications enabled";
-    break;
-  case GATT_CLIENT_CFG_INDICATE:
-    configValString = "Indications enabled";
-    break;
-  }
-#endif
-  switch (pCharData->paramID)
-  {
-    case DS_STREAM_ID:
-      Log_info3("CCCD Change msg: %s %s: %s",
-                (IArg)"Data Service",
-                (IArg)"Stream",
-                (IArg)configValString);
-      // -------------------------
-      // Do something useful with configValue here. It tells you whether someone
-      // wants to know the state of this characteristic.
-      // ...
-      break;
   }
 }
 
@@ -1764,14 +1479,6 @@ static void user_enqueueRawAppMsg(app_msg_types_t appMsgType, uint8_t *pData,
 static void user_updateCharVal(char_data_t *pCharData)
 {
   switch(pCharData->svcUUID) {
-    case LED_SERVICE_SERV_UUID:
-        LedService_SetParameter(pCharData->paramID, pCharData->dataLen,
-                              pCharData->data);
-        break;
-    case BUTTON_SERVICE_SERV_UUID:
-        ButtonService_SetParameter(pCharData->paramID, pCharData->dataLen,
-                                 pCharData->data);
-        break;
     case CONFIG_SERVICE_SERV_UUID:
         Config_service_SetParameter(pCharData->paramID, pCharData->dataLen,
                                     pCharData->data);
