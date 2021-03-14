@@ -76,6 +76,7 @@
 #include "project_zero.h"
 
 // Bluetooth Developer Studio services
+// TODO: Remove old services
 #include "led_service.h"
 #include "button_service.h"
 #include "data_service.h"
@@ -601,15 +602,22 @@ static void ProjectZero_init(void)
   GGS_SetParameter(GGS_DEVICE_NAME_ATT, GAP_DEVICE_NAME_LEN, attDeviceName);
 
   // Add services to GATT server and give ID of this task for Indication acks.
+  // TODO: Remove old services
   LedService_AddService( selfEntity );
   ButtonService_AddService( selfEntity );
   DataService_AddService( selfEntity );
 
+  Config_service_AddService( selfEntity );
+  Heartrate_service_AddService( selfEntity );
+  Emergency_alert_service_AddService( selfEntity );
+
   // Register callbacks with the generated services that
   // can generate events (writes received) to the application
+  // TODO: Remove old service callbacks
   LedService_RegisterAppCBs( &user_LED_ServiceCBs );
   ButtonService_RegisterAppCBs( &user_Button_ServiceCBs );
   DataService_RegisterAppCBs( &user_Data_ServiceCBs );
+  // TODO: Register callbacks for new services
 
   // Placeholder variable for characteristic intialization
   uint8_t initVal[40] = {0};
