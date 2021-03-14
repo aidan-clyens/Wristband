@@ -80,6 +80,10 @@
 #include "button_service.h"
 #include "data_service.h"
 
+#include "config_service.h"
+#include "heartrate_service.h"
+#include "emergency_alert_service.h"
+
 /*********************************************************************
  * CONSTANTS
  */
