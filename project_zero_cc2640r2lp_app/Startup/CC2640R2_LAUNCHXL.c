@@ -511,8 +511,13 @@ GPIO_PinConfig gpioPinConfigs[] = {
     GPIOCC26XX_DIO_13 | GPIO_DO_NOT_CONFIG,  /* Button 0 */
     GPIOCC26XX_DIO_14 | GPIO_DO_NOT_CONFIG,  /* Button 1 */
 
-    GPIOCC26XX_DIO_15 | GPIO_DO_NOT_CONFIG,  /* CC2640R2_LAUNCHXL_SPI_MASTER_READY */
-    GPIOCC26XX_DIO_21 | GPIO_DO_NOT_CONFIG,  /* CC2640R2_LAUNCHXL_SPI_SLAVE_READY */
+    /* LIS3DH */
+    GPIOCC26XX_DIO_22 | GPIO_DO_NOT_CONFIG,  /* LIS3DH INT1 */
+
+    /* MAX32664 */
+    GPIOCC26XX_DIO_15 | GPIO_DO_NOT_CONFIG,  /* MAX32664 MFIO */
+    GPIOCC26XX_DIO_21 | GPIO_DO_NOT_CONFIG,  /* MAX32664 Reset */
+
     /* Output pins */
     GPIOCC26XX_DIO_07 | GPIO_DO_NOT_CONFIG,  /* Green LED */
     GPIOCC26XX_DIO_06 | GPIO_DO_NOT_CONFIG,  /* Red LED */
@@ -523,11 +528,6 @@ GPIO_PinConfig gpioPinConfigs[] = {
 
     /* SD CS */
     GPIOCC26XX_DIO_21 | GPIO_DO_NOT_CONFIG,
-
-    /* Sharp Display - GPIO configurations will be done in the Display files */
-    GPIOCC26XX_DIO_24 | GPIO_DO_NOT_CONFIG, /* SPI chip select */
-    GPIOCC26XX_DIO_22 | GPIO_DO_NOT_CONFIG, /* LCD power control */
-    GPIOCC26XX_DIO_23 | GPIO_DO_NOT_CONFIG, /*LCD enable */
 };
 
 /*
@@ -542,6 +542,8 @@ GPIO_CallbackFxn gpioCallbackFunctions[] = {
     NULL,  /* Button 1 */
     NULL,  /* CC2640R2_LAUNCHXL_SPI_MASTER_READY */
     NULL,  /* CC2640R2_LAUNCHXL_SPI_SLAVE_READY */
+    NULL,  /* LIS3DH INT1 */
+    NULL,  /* MAX32664 MFIO */
 };
 
 const GPIOCC26XX_Config GPIOCC26XX_config = {
@@ -788,25 +790,14 @@ const PINCC26XX_HWAttrs PINCC26XX_hwAttrs = {
 const PowerCC26XX_Config PowerCC26XX_config = {
     .policyInitFxn      = NULL,
     .policyFxn          = &PowerCC26XX_standbyPolicy,
+    .calibrateFxn       = &PowerCC26XX_calibrate,
     .enablePolicy       = true,
 #ifdef USE_RCOSC
-    .calibrateFxn       = &PowerCC26XX_calibrate,
     .calibrateRCOSC_LF  = true,
-    .calibrateRCOSC_HF  = true,
 #else
-#ifdef NO_CALIBRATION_NO_RCOSC
-    // use no_calibrate functions (when RCOSC is not used) 
-    // in order to save uncalled functions flash size 
-    .calibrateFxn       = &PowerCC26XX_noCalibrate,
     .calibrateRCOSC_LF  = false,
-    .calibrateRCOSC_HF  = false,
-#else
-    // old configuration  
-    .calibrateFxn       = &PowerCC26XX_calibrate,
-    .calibrateRCOSC_LF  = false,
+#endif
     .calibrateRCOSC_HF  = true,
-#endif
-#endif
 };
 
 /*

@@ -94,8 +94,8 @@ extern const PIN_Config BoardGpioInitTable[];
  *  Define only one symbol:
  *  CC2650EM_7ID    - Differential RF and internal biasing
                       (default for CC2640R2 LaunchPad)
- *  CC2650EM_5XD    â€“ Differential RF and external biasing
- *  CC2650EM_4XS    â€“ Single-ended RF on RF-P and external biasing
+ *  CC2650EM_5XD    – Differential RF and external biasing
+ *  CC2650EM_4XS    – Single-ended RF on RF-P and external biasing
  *  CC2640R2DK_CXS  - WCSP: Single-ended RF on RF-N and external biasing
  *                    (Note that the WCSP is only tested and characterized for
  *                     single ended configuration, and it has a WCSP-specific
@@ -344,6 +344,9 @@ typedef enum CC2640R2_LAUNCHXL_GPIOName {
     CC2640R2_LAUNCHXL_GPIO_S2,
     CC2640R2_LAUNCHXL_SPI_MASTER_READY,
     CC2640R2_LAUNCHXL_SPI_SLAVE_READY,
+    CC2640R2_LAUNCHXL_GPIO_LIS3DH_INT1,
+    CC2640R2_LAUNCHXL_GPIO_MAX32664_MFIO,
+    CC2640R2_LAUNCHXL_GPIO_MAX32664_RESET,
     CC2640R2_LAUNCHXL_GPIO_LED_GREEN,
     CC2640R2_LAUNCHXL_GPIO_LED_RED,
     CC2640R2_LAUNCHXL_GPIO_TMP116_EN,
