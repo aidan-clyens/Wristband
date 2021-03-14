@@ -95,7 +95,7 @@
 #define DEFAULT_PASSCODE                      000000
 
 // Task configuration
-#define PRZ_TASK_PRIORITY                     1
+#define PRZ_TASK_PRIORITY                     2
 
 #ifndef PRZ_TASK_STACK_SIZE
 #define PRZ_TASK_STACK_SIZE                   800
@@ -895,8 +895,14 @@ static void user_handleButtonPress(button_state_t *pState)
   {
     case Board_BUTTON0:
     case Board_BUTTON1:
-      break;
-    // TODO: Trigger emergency alert
+    {
+        // Trigger emergency alert
+        uint8_t alertActive = 1;
+        uint8_t alertType = 0;  // TODO: Add enum for alert types
+        Emergency_alert_service_SetParameter(EMERGENCY_ALERT_SERVICE_ALERTACTIVE_ID, EMERGENCY_ALERT_SERVICE_ALERTACTIVE_LEN, &alertActive);
+        Emergency_alert_service_SetParameter(EMERGENCY_ALERT_SERVICE_ALERTTYPE_ID, EMERGENCY_ALERT_SERVICE_ALERTTYPE_LEN, &alertType);
+    }
+    break;
   }
 }
 
