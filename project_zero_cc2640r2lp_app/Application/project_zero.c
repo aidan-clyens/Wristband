@@ -1694,15 +1694,25 @@ static void user_updateCharVal(char_data_t *pCharData)
 {
   switch(pCharData->svcUUID) {
     case LED_SERVICE_SERV_UUID:
-      LedService_SetParameter(pCharData->paramID, pCharData->dataLen,
+        LedService_SetParameter(pCharData->paramID, pCharData->dataLen,
                               pCharData->data);
-    break;
-
+        break;
     case BUTTON_SERVICE_SERV_UUID:
-      ButtonService_SetParameter(pCharData->paramID, pCharData->dataLen,
+        ButtonService_SetParameter(pCharData->paramID, pCharData->dataLen,
                                  pCharData->data);
-    break;
-
+        break;
+    case CONFIG_SERVICE_SERV_UUID:
+        Config_service_SetParameter(pCharData->paramID, pCharData->dataLen,
+                                    pCharData->data);
+        break;
+    case HEARTRATE_SERVICE_SERV_UUID:
+        Heartrate_service_SetParameter(pCharData->paramID, pCharData->dataLen,
+                                       pCharData->data);
+        break;
+    case EMERGENCY_ALERT_SERVICE_SERV_UUID:
+        Heartrate_service_SetParameter(pCharData->paramID, pCharData->dataLen,
+                                       pCharData->data);
+        break;
   }
 }
 
