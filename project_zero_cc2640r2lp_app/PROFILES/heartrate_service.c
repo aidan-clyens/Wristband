@@ -640,7 +640,6 @@ static bStatus_t heartrate_service_WriteAttrCB( uint16_t connHandle, gattAttribu
                                         uint8_t method )
 {
   bStatus_t status  = SUCCESS;
-  uint8_t   paramID = 0xFF;
 
   // See if request is regarding a Client Characterisic Configuration
   if ( ! memcmp(pAttr->type.uuid, clientCharCfgUUID, pAttr->type.len) )
@@ -649,105 +648,6 @@ static bStatus_t heartrate_service_WriteAttrCB( uint16_t connHandle, gattAttribu
     status = GATTServApp_ProcessCCCWriteReq( connHandle, pAttr, pValue, len,
                                              offset, GATT_CLIENT_CFG_NOTIFY);
   }
-  // See if request is regarding the Heartratevalue Characteristic Value
-  else if ( ! memcmp(pAttr->type.uuid, heartrate_service_HeartratevalueUUID, pAttr->type.len) )
-  {
-    if ( offset + len > HEARTRATE_SERVICE_HEARTRATEVALUE_LEN )
-    {
-      status = ATT_ERR_INVALID_OFFSET;
-    }
-    else
-    {
-      // Copy pValue into the variable we point to from the attribute table.
-      memcpy(pAttr->pValue + offset, pValue, len);
 
-      // Only notify application if entire expected value is written
-      if ( offset + len == HEARTRATE_SERVICE_HEARTRATEVALUE_LEN)
-        paramID = HEARTRATE_SERVICE_HEARTRATEVALUE_ID;
-    }
-  }
-  // See if request is regarding the Heartrateconfidence Characteristic Value
-  else if ( ! memcmp(pAttr->type.uuid, heartrate_service_HeartrateconfidenceUUID, pAttr->type.len) )
-  {
-    if ( offset + len > HEARTRATE_SERVICE_HEARTRATECONFIDENCE_LEN )
-    {
-      status = ATT_ERR_INVALID_OFFSET;
-    }
-    else
-    {
-      // Copy pValue into the variable we point to from the attribute table.
-      memcpy(pAttr->pValue + offset, pValue, len);
-
-      // Only notify application if entire expected value is written
-      if ( offset + len == HEARTRATE_SERVICE_HEARTRATECONFIDENCE_LEN)
-        paramID = HEARTRATE_SERVICE_HEARTRATECONFIDENCE_ID;
-    }
-  }
-  // See if request is regarding the Spo2value Characteristic Value
-  else if ( ! memcmp(pAttr->type.uuid, heartrate_service_Spo2valueUUID, pAttr->type.len) )
-  {
-    if ( offset + len > HEARTRATE_SERVICE_SPO2VALUE_LEN )
-    {
-      status = ATT_ERR_INVALID_OFFSET;
-    }
-    else
-    {
-      // Copy pValue into the variable we point to from the attribute table.
-      memcpy(pAttr->pValue + offset, pValue, len);
-
-      // Only notify application if entire expected value is written
-      if ( offset + len == HEARTRATE_SERVICE_SPO2VALUE_LEN)
-        paramID = HEARTRATE_SERVICE_SPO2VALUE_ID;
-    }
-  }
-  // See if request is regarding the Spo2confidence Characteristic Value
-  else if ( ! memcmp(pAttr->type.uuid, heartrate_service_Spo2confidenceUUID, pAttr->type.len) )
-  {
-    if ( offset + len > HEARTRATE_SERVICE_SPO2CONFIDENCE_LEN )
-    {
-      status = ATT_ERR_INVALID_OFFSET;
-    }
-    else
-    {
-      // Copy pValue into the variable we point to from the attribute table.
-      memcpy(pAttr->pValue + offset, pValue, len);
-
-      // Only notify application if entire expected value is written
-      if ( offset + len == HEARTRATE_SERVICE_SPO2CONFIDENCE_LEN)
-        paramID = HEARTRATE_SERVICE_SPO2CONFIDENCE_ID;
-    }
-  }
-  // See if request is regarding the Scdstate Characteristic Value
-  else if ( ! memcmp(pAttr->type.uuid, heartrate_service_ScdstateUUID, pAttr->type.len) )
-  {
-    if ( offset + len > HEARTRATE_SERVICE_SCDSTATE_LEN )
-    {
-      status = ATT_ERR_INVALID_OFFSET;
-    }
-    else
-    {
-      // Copy pValue into the variable we point to from the attribute table.
-      memcpy(pAttr->pValue + offset, pValue, len);
-
-      // Only notify application if entire expected value is written
-      if ( offset + len == HEARTRATE_SERVICE_SCDSTATE_LEN)
-        paramID = HEARTRATE_SERVICE_SCDSTATE_ID;
-    }
-  }
-  else
-  {
-    // If we get here, that means you've forgotten to add an if clause for a
-    // characteristic value attribute in the attribute table that has WRITE permissions.
-    status = ATT_ERR_ATTR_NOT_FOUND;
-  }
-
-  // Let the application know something changed (if it did) by using the
-  // callback it registered earlier (if it did).
-  if (paramID != 0xFF)
-    if ( pAppCBs && pAppCBs->pfnChangeCb )
-    {
-      uint16_t svcUuid = HEARTRATE_SERVICE_SERV_UUID;
-      pAppCBs->pfnChangeCb(connHandle, svcUuid, paramID, len, pValue); // Call app function from stack task context.
-    }
   return status;
 }

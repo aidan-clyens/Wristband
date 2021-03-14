@@ -336,7 +336,6 @@ static bStatus_t config_service_WriteAttrCB( uint16_t connHandle, gattAttribute_
                                         uint8_t method )
 {
   bStatus_t status  = SUCCESS;
-  uint8_t   paramID = 0xFF;
 
   // See if request is regarding a Client Characterisic Configuration
   if ( ! memcmp(pAttr->type.uuid, clientCharCfgUUID, pAttr->type.len) )
@@ -345,37 +344,6 @@ static bStatus_t config_service_WriteAttrCB( uint16_t connHandle, gattAttribute_
     status = GATTServApp_ProcessCCCWriteReq( connHandle, pAttr, pValue, len,
                                              offset, GATT_CLIENT_CFG_NOTIFY);
   }
-  // See if request is regarding the Rssi Characteristic Value
-  else if ( ! memcmp(pAttr->type.uuid, config_service_RssiUUID, pAttr->type.len) )
-  {
-    if ( offset + len > CONFIG_SERVICE_RSSI_LEN )
-    {
-      status = ATT_ERR_INVALID_OFFSET;
-    }
-    else
-    {
-      // Copy pValue into the variable we point to from the attribute table.
-      memcpy(pAttr->pValue + offset, pValue, len);
 
-      // Only notify application if entire expected value is written
-      if ( offset + len == CONFIG_SERVICE_RSSI_LEN)
-        paramID = CONFIG_SERVICE_RSSI_ID;
-    }
-  }
-  else
-  {
-    // If we get here, that means you've forgotten to add an if clause for a
-    // characteristic value attribute in the attribute table that has WRITE permissions.
-    status = ATT_ERR_ATTR_NOT_FOUND;
-  }
-
-  // Let the application know something changed (if it did) by using the
-  // callback it registered earlier (if it did).
-  if (paramID != 0xFF)
-    if ( pAppCBs && pAppCBs->pfnChangeCb )
-    {
-      uint16_t svcUuid = CONFIG_SERVICE_SERV_UUID;
-      pAppCBs->pfnChangeCb(connHandle, svcUuid, paramID, len, pValue); // Call app function from stack task context.
-    }
   return status;
 }

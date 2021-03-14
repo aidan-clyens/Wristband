@@ -421,23 +421,6 @@ static bStatus_t emergency_alert_service_WriteAttrCB( uint16_t connHandle, gattA
     status = GATTServApp_ProcessCCCWriteReq( connHandle, pAttr, pValue, len,
                                              offset, GATT_CLIENT_CFG_NOTIFY);
   }
-  // See if request is regarding the AlertType Characteristic Value
-  else if ( ! memcmp(pAttr->type.uuid, emergency_alert_service_AlertTypeUUID, pAttr->type.len) )
-  {
-    if ( offset + len > EMERGENCY_ALERT_SERVICE_ALERTTYPE_LEN )
-    {
-      status = ATT_ERR_INVALID_OFFSET;
-    }
-    else
-    {
-      // Copy pValue into the variable we point to from the attribute table.
-      memcpy(pAttr->pValue + offset, pValue, len);
-
-      // Only notify application if entire expected value is written
-      if ( offset + len == EMERGENCY_ALERT_SERVICE_ALERTTYPE_LEN)
-        paramID = EMERGENCY_ALERT_SERVICE_ALERTTYPE_ID;
-    }
-  }
   // See if request is regarding the AlertActive Characteristic Value
   else if ( ! memcmp(pAttr->type.uuid, emergency_alert_service_AlertActiveUUID, pAttr->type.len) )
   {
@@ -468,7 +451,7 @@ static bStatus_t emergency_alert_service_WriteAttrCB( uint16_t connHandle, gattA
     if ( pAppCBs && pAppCBs->pfnChangeCb )
     {
       uint16_t svcUuid = EMERGENCY_ALERT_SERVICE_SERV_UUID;
-      pAppCBs->pfnChangeCb(connHandle, svcUuid, paramID, len, pValue); // Call app function from stack task context.
+      pAppCBs->pfnChangeCb(connHandle, svcUuid, paramID, pValue, len); // Call app function from stack task context.
     }
   return status;
 }
