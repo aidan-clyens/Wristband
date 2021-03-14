@@ -86,7 +86,7 @@ typedef enum
  */
 
 // Callback when a characteristic value has changed
-typedef void (*emergency_alert_serviceChange_t)(uint16_t connHandle, uint16_t svcUuid, uint8_t paramID, uint16_t len, uint8_t *pValue);
+typedef void (*emergency_alert_serviceChange_t)( uint16_t connHandle, uint16_t svcUuid, uint8_t paramID, uint8_t *pValue, uint16_t len );
 
 typedef struct
 {

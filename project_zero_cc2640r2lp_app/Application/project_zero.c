@@ -312,6 +312,10 @@ static void user_LedService_ValueChangeHandler(char_data_t *pCharData);
 static void user_ButtonService_CfgChangeHandler(char_data_t *pCharData);
 static void user_DataService_ValueChangeHandler(char_data_t *pCharData);
 static void user_DataService_CfgChangeHandler(char_data_t *pCharData);
+// TODO: Add value change handlers for new services
+static void user_Config_service_CfgChangeHandler(char_data_t *pCharData);
+static void user_Heartrate_service_CfgChangeHandler(char_data_t *pCharData);
+static void user_Emergency_alert_service_CfgChangeHandler(char_data_t *pCharData);
 
 // Task handler for sending notifications.
 static void user_updateCharVal(char_data_t *pCharData);
@@ -805,6 +809,16 @@ static void user_processApplicationMessage(app_msg_t *pMsg)
         case DATA_SERVICE_SERV_UUID:
           user_DataService_CfgChangeHandler(pCharData);
           break;
+        // TODO: Add new services
+        case CONFIG_SERVICE_SERV_UUID:
+          user_Config_service_CfgChangeHandler(pCharData);
+          break;
+        case HEARTRATE_SERVICE_SERV_UUID:
+          user_Heartrate_service_CfgChangeHandler(pCharData);
+          break;
+        case EMERGENCY_ALERT_SERVICE_SERV_UUID:
+          user_Emergency_alert_service_CfgChangeHandler(pCharData);
+          break;
       }
       break;
 
@@ -1179,6 +1193,190 @@ void user_DataService_CfgChangeHandler(char_data_t *pCharData)
   }
 }
 
+/*
+ * @brief   Handle a CCCD (configuration change) write received from a peer
+ *          device. This tells us whether the peer device wants us to send
+ *          Notifications or Indications.
+ *
+ * @param   pCharData  pointer to malloc'd char write data
+ *
+ * @return  None.
+ */
+void user_Config_service_CfgChangeHandler(char_data_t *pCharData)
+{
+#if defined(UARTLOG_ENABLE)
+  // Cast received data to uint16, as that's the format for CCCD writes.
+  uint16_t configValue = *(uint16_t *)pCharData->data;
+  char *configValString;
+
+  // Determine what to tell the user
+  switch(configValue)
+  {
+  case GATT_CFG_NO_OPERATION:
+    configValString = "Noti/Ind disabled";
+    break;
+  case GATT_CLIENT_CFG_NOTIFY:
+    configValString = "Notifications enabled";
+    break;
+  case GATT_CLIENT_CFG_INDICATE:
+    configValString = "Indications enabled";
+    break;
+  }
+#endif
+  switch (pCharData->paramID)
+  {
+    case CONFIG_SERVICE_RSSI_ID:
+      Log_info3("CCCD Change msg: %s %s: %s",
+                (IArg)"Config Service",
+                (IArg)"RSSI",
+                (IArg)configValString);
+      // -------------------------
+      // Do something useful with configValue here. It tells you whether someone
+      // wants to know the state of this characteristic.
+      // ...
+      break;
+  }
+}
+
+/*
+ * @brief   Handle a CCCD (configuration change) write received from a peer
+ *          device. This tells us whether the peer device wants us to send
+ *          Notifications or Indications.
+ *
+ * @param   pCharData  pointer to malloc'd char write data
+ *
+ * @return  None.
+ */
+void user_Heartrate_service_CfgChangeHandler(char_data_t *pCharData)
+{
+#if defined(UARTLOG_ENABLE)
+  // Cast received data to uint16, as that's the format for CCCD writes.
+  uint16_t configValue = *(uint16_t *)pCharData->data;
+  char *configValString;
+
+  // Determine what to tell the user
+  switch(configValue)
+  {
+  case GATT_CFG_NO_OPERATION:
+    configValString = "Noti/Ind disabled";
+    break;
+  case GATT_CLIENT_CFG_NOTIFY:
+    configValString = "Notifications enabled";
+    break;
+  case GATT_CLIENT_CFG_INDICATE:
+    configValString = "Indications enabled";
+    break;
+  }
+#endif
+  switch (pCharData->paramID)
+  {
+    case HEARTRATE_SERVICE_HEARTRATEVALUE_ID:
+      Log_info3("CCCD Change msg: %s %s: %s",
+                (IArg)"Heartrate Service",
+                (IArg)"Heartrate Value",
+                (IArg)configValString);
+      // -------------------------
+      // Do something useful with configValue here. It tells you whether someone
+      // wants to know the state of this characteristic.
+      // ...
+      break;
+    case HEARTRATE_SERVICE_HEARTRATECONFIDENCE_ID:
+      Log_info3("CCCD Change msg: %s %s: %s",
+                (IArg)"Heartrate Service",
+                (IArg)"Heartrate Confidence",
+                (IArg)configValString);
+      // -------------------------
+      // Do something useful with configValue here. It tells you whether someone
+      // wants to know the state of this characteristic.
+      // ...
+      break;
+    case HEARTRATE_SERVICE_SPO2VALUE_ID:
+      Log_info3("CCCD Change msg: %s %s: %s",
+                (IArg)"Heartrate Service",
+                (IArg)"SpO2 Value",
+                (IArg)configValString);
+      // -------------------------
+      // Do something useful with configValue here. It tells you whether someone
+      // wants to know the state of this characteristic.
+      // ...
+      break;
+    case HEARTRATE_SERVICE_SPO2CONFIDENCE_ID:
+      Log_info3("CCCD Change msg: %s %s: %s",
+                (IArg)"Heartrate Service",
+                (IArg)"SpO2 Confidence",
+                (IArg)configValString);
+      // -------------------------
+      // Do something useful with configValue here. It tells you whether someone
+      // wants to know the state of this characteristic.
+      // ...
+      break;
+    case HEARTRATE_SERVICE_SCDSTATE_ID:
+      Log_info3("CCCD Change msg: %s %s: %s",
+                (IArg)"Heartrate Service",
+                (IArg)"SCD State",
+                (IArg)configValString);
+      // -------------------------
+      // Do something useful with configValue here. It tells you whether someone
+      // wants to know the state of this characteristic.
+      // ...
+      break;
+  }
+}
+
+/*
+ * @brief   Handle a CCCD (configuration change) write received from a peer
+ *          device. This tells us whether the peer device wants us to send
+ *          Notifications or Indications.
+ *
+ * @param   pCharData  pointer to malloc'd char write data
+ *
+ * @return  None.
+ */
+void user_Emergency_alert_service_CfgChangeHandler(char_data_t *pCharData)
+{
+#if defined(UARTLOG_ENABLE)
+  // Cast received data to uint16, as that's the format for CCCD writes.
+  uint16_t configValue = *(uint16_t *)pCharData->data;
+  char *configValString;
+
+  // Determine what to tell the user
+  switch(configValue)
+  {
+  case GATT_CFG_NO_OPERATION:
+    configValString = "Noti/Ind disabled";
+    break;
+  case GATT_CLIENT_CFG_NOTIFY:
+    configValString = "Notifications enabled";
+    break;
+  case GATT_CLIENT_CFG_INDICATE:
+    configValString = "Indications enabled";
+    break;
+  }
+#endif
+  switch (pCharData->paramID)
+  {
+    case EMERGENCY_ALERT_SERVICE_ALERTTYPE_ID:
+      Log_info3("CCCD Change msg: %s %s: %s",
+                (IArg)"Emergency Alert Service",
+                (IArg)"Alert Type",
+                (IArg)configValString);
+      // -------------------------
+      // Do something useful with configValue here. It tells you whether someone
+      // wants to know the state of this characteristic.
+      // ...
+      break;
+    case EMERGENCY_ALERT_SERVICE_ALERTACTIVE_ID:
+      Log_info3("CCCD Change msg: %s %s: %s",
+                (IArg)"Emergency Alert Service",
+                (IArg)"Alert Active",
+                (IArg)configValString);
+      // -------------------------
+      // Do something useful with configValue here. It tells you whether someone
+      // wants to know the state of this characteristic.
+      // ...
+      break;
+  }
+}
 
 /*
  * @brief   Process an incoming BLE stack message.
