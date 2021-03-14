@@ -355,6 +355,7 @@ static gapBondCBs_t user_bondMgrCBs =
  */
 // LED Service callback handler.
 // The type LED_ServiceCBs_t is defined in led_service.h
+// TODO: Remove old service callbacks
 static LedServiceCBs_t user_LED_ServiceCBs =
 {
   .pfnChangeCb    = user_service_ValueChangeCB, // Characteristic value change callback handler
@@ -372,6 +373,24 @@ static ButtonServiceCBs_t user_Button_ServiceCBs =
 // Data Service callback handler.
 // The type Data_ServiceCBs_t is defined in data_service.h
 static DataServiceCBs_t user_Data_ServiceCBs =
+{
+  .pfnChangeCb    = user_service_ValueChangeCB, // Characteristic value change callback handler
+  .pfnCfgChangeCb = user_service_CfgChangeCB, // Noti/ind configuration callback handler
+};
+
+static config_serviceCBs_t user_Config_ServiceCBs =
+{
+  .pfnChangeCb    = NULL, // No writable chars in Config Service, so no change handler.
+  .pfnCfgChangeCb = user_service_CfgChangeCB, // Noti/ind configuration callback handler
+};
+
+static heartrate_serviceCBs_t user_Heartrate_ServiceCBs =
+{
+  .pfnChangeCb    = NULL, // No writable chars in Heartrate Service, so no change handler.
+  .pfnCfgChangeCb = user_service_CfgChangeCB, // Noti/ind configuration callback handler
+};
+
+static emergency_alert_serviceCBs_t user_EmergencyAlert_ServiceCBs =
 {
   .pfnChangeCb    = user_service_ValueChangeCB, // Characteristic value change callback handler
   .pfnCfgChangeCb = user_service_CfgChangeCB, // Noti/ind configuration callback handler
@@ -617,7 +636,10 @@ static void ProjectZero_init(void)
   LedService_RegisterAppCBs( &user_LED_ServiceCBs );
   ButtonService_RegisterAppCBs( &user_Button_ServiceCBs );
   DataService_RegisterAppCBs( &user_Data_ServiceCBs );
-  // TODO: Register callbacks for new services
+
+  Config_service_RegisterAppCBs( &user_Config_ServiceCBs );
+  Heartrate_service_RegisterAppCBs( &user_Heartrate_ServiceCBs );
+  Emergency_alert_service_RegisterAppCBs( &user_EmergencyAlert_ServiceCBs );
 
   // Placeholder variable for characteristic intialization
   uint8_t initVal[40] = {0};
