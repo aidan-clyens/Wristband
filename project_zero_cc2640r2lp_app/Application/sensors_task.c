@@ -28,6 +28,7 @@
 
 #include "sensors_task.h"
 #include "i2c_util.h"
+#include "spi_util.h""
 #include "lis3dh.h"
 #include "max32664.h"
 
@@ -142,7 +143,13 @@ static void Sensors_init(void) {
     // Initialize I2C
     if (!Util_i2cInit()) {
         Log_error0("I2C failed to initialize");
-        Task_exit();
+        while (1) {}
+    }
+
+    // Initialize SPI
+    if (!Util_spiInit()) {
+        Log_error0("SPI failed to initialize");
+        while (1) {}
     }
 
     // Create message queue

@@ -18,7 +18,7 @@
 #include <Board.h>
 
 #include <icall.h>
-#include <i2c_util.h>
+#include <spi_util.h>
 #include <lis3dh.h>
 #include <util.h>
 
@@ -99,8 +99,10 @@ typedef enum {
  * LOCAL VARIABLES
  */
 // SPI
-static SPI_Handle      masterSpi;
 static SPI_Transaction spiTransaction;
+
+static uint8_t txBuffer[32];
+static uint8_t rxBuffer[32];
 
 /*********************************************************************
  * LOCAL FUNCTIONS
@@ -128,20 +130,6 @@ static bool Lis3dh_readRegisterRegion(uint8_t regAddress, int length, uint8_t *d
  * @brief   Initialization for LIS3DH task.
  */
 bool Lis3dh_init(void *isr_fxn) {
-    // Configure SPI
-//    SPI_Params spiParams;
-//    SPI_Params_init(&spiParams);
-//    spiParams.frameFormat = SPI_POL0_PHA1;
-//    spiParams.bitRate = 4000000;
-//    masterSpi = SPI_open(Board_SPI_MASTER, &spiParams);
-//    if (masterSpi == NULL) {
-//        Log_error0("Error initializing SPI");
-//        return false;
-//    }
-//    else {
-//        Log_info0("SPI initialized");
-//    }
-
     // Configure GPIO
     GPIO_setConfig(Board_GPIO_LIS3DH_INT1, GPIO_CFG_IN_PU | GPIO_CFG_IN_INT_FALLING);
     // Enable INT1 interrupts
@@ -460,7 +448,18 @@ static bool Lis3dh_configureFreeFallInterrupt(bool enable, float threshold, int 
  *          data - Data to write to register.
  */
 static bool Lis3dh_writeRegister(uint8_t regAddress, uint8_t data) {
+    txBuffer[0] = regAddress;
+    txBuffer[1] = data;
 
+    spiTransaction.txBuf = txBuffer;
+    spiTransaction.rxBuf = rxBuffer;
+    spiTransaction.count = 2;
+    if (!Util_spiTransfer(&spiTransaction)) {
+        Log_error0("SPI transfer failed");
+        return false;
+    }
+
+    return true;
 }
 
 /*********************************************************************
@@ -472,7 +471,19 @@ static bool Lis3dh_writeRegister(uint8_t regAddress, uint8_t data) {
  *          data - Variable to read data into.
  */
 static bool Lis3dh_readRegister(uint8_t regAddress, uint8_t *data) {
+    txBuffer[0] = regAddress;
 
+    spiTransaction.txBuf = txBuffer;
+    spiTransaction.rxBuf = rxBuffer;
+    spiTransaction.count = 1;
+    if (!Util_spiTransfer(&spiTransaction)) {
+        Log_error0("SPI transfer failed");
+        return false;
+    }
+
+    (*data) = rxBuffer[0];
+
+    return true;
 }
 
 /*********************************************************************
@@ -485,5 +496,17 @@ static bool Lis3dh_readRegister(uint8_t regAddress, uint8_t *data) {
  *          data - Variable to read data into.
  */
 static bool Lis3dh_readRegisterRegion(uint8_t regAddress, int length, uint8_t *data) {
-
+//    txBuffer[0] = regAddress;
+//
+//    spiTransaction.txBuf = txBuffer;
+//    spiTransaction.rxBuf = rxBuffer;
+//    spiTransaction.count = 1;
+//    if (!SPI_transfer(spiHandle, &spiTransaction)) {
+//        Log_error0("SPI transfer failed");
+//        return false;
+//    }
+//
+//    (*data) = rxBuffer[0];
+//
+//    return true;
 }
