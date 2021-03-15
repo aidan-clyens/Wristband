@@ -37,7 +37,7 @@
 // I2C
 #define MAX32664_ADDRESS                    0x55
 #define MAX32664_CMD_DELAY                  6
-#define MAX32664_ENABLE_CMD_DELAY           22
+#define MAX32664_ENABLE_CMD_DELAY           42
 
 // Family names
 #define MAX32664_READ_SENSOR_HUB_STATUS     0x00
@@ -348,7 +348,7 @@ static max32664_status_t Max32664_enableWhrmWspo2Algorithm(uint8_t enableMode) {
  * @param   Enable Mode or Disable
  */
 static max32664_status_t Max32664_enableMaximFastAlgorithm(uint8_t enableMode) {
-    return Max32664_writeByte(MAX32664_ALGORITHM_MODE_ENABLE, MAX32664_MAXIMFAST_ALGORITHM, enableMode, 2 * MAX32664_ENABLE_CMD_DELAY);
+    return Max32664_writeByte(MAX32664_ALGORITHM_MODE_ENABLE, MAX32664_MAXIMFAST_ALGORITHM, enableMode, MAX32664_ENABLE_CMD_DELAY);
 }
 
 /*********************************************************************
