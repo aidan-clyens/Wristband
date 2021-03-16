@@ -11,7 +11,7 @@
 //#include <xdc/std.h>
 
 #include <ti/drivers/SPI.h>
-#include <ti/drivers/GPIO.h>
+#include <ti/drivers/PIN.h>
 
 #include <uartlog/UartLog.h>
 
@@ -28,7 +28,10 @@
 // I2C
 #define LIS3DH_ADDRESS                  0x19
 
+#define LIS3DH_WHO_AM_I_VALUE           0x33
+
 // Registers
+#define LIS3DH_WHO_AM_I                 0x0F
 #define LIS3DH_CTRL_REG1                0x20
 #define LIS3DH_CTRL_REG3                0x22
 #define LIS3DH_CTRL_REG4                0x23
@@ -94,6 +97,12 @@ typedef enum {
 /*********************************************************************
  * GLOBAL VARIABLES
  */
+// Pins
+PIN_Config lis3dhPinTable[] = {
+    Board_LIS3DH_CS | PIN_GPIO_OUTPUT_EN | PIN_GPIO_HIGH | PIN_PUSHPULL | PIN_DRVSTR_MAX,
+    Board_LIS3DH_INT1 | PIN_INPUT_EN | PIN_PULLUP | PIN_IRQ_NEGEDGE,
+    PIN_TERMINATE
+};
 
 /*********************************************************************
  * LOCAL VARIABLES
@@ -104,9 +113,14 @@ static SPI_Transaction spiTransaction;
 static uint8_t txBuffer[32];
 static uint8_t rxBuffer[32];
 
+// Pins
+static PIN_Handle lis3dhPinHandle;
+static PIN_State lis3dhPinState;
+
 /*********************************************************************
  * LOCAL FUNCTIONS
  */
+static bool Lis3dh_readWhoAmI(uint8_t *id);
 static bool Lis3dh_configureDataRate(data_rate_t dataRate);
 static bool Lis3dh_setLowPowerMode(bool enable);
 static bool Lis3dh_setFifoMode(fifo_mode_t fifoMode);
@@ -130,11 +144,34 @@ static bool Lis3dh_readRegisterRegion(uint8_t regAddress, int length, uint8_t *d
  * @brief   Initialization for LIS3DH task.
  */
 bool Lis3dh_init(void *isr_fxn) {
-    // Configure GPIO
-    GPIO_setConfig(Board_GPIO_LIS3DH_INT1, GPIO_CFG_IN_PU | GPIO_CFG_IN_INT_FALLING);
+    // Configure GPIO pins
+    if (lis3dhPinHandle) PIN_close(lis3dhPinHandle);
+    lis3dhPinHandle = PIN_open(&lis3dhPinState, lis3dhPinTable);
+    if(!lis3dhPinHandle) {
+        Log_error0("Error initializing LIS3DH pins");
+        return false;
+    }
+
+    uint8_t id;
+    if (Lis3dh_readWhoAmI(&id)) {
+        if (id == LIS3DH_WHO_AM_I_VALUE) {
+            Log_info1("Read WHO_AM_I register, device ID: %d", id);
+        }
+        else {
+            Log_error1("Read WHO_AM_I register, device ID is not correct: %d", id);
+            return false;
+        }
+    }
+    else {
+        Log_error0("Error reading WHO_AM_I register");
+        return false;
+    }
+
     // Enable INT1 interrupts
-    GPIO_setCallback(Board_GPIO_LIS3DH_INT1, (GPIO_CallbackFxn)isr_fxn);
-    GPIO_enableInt(Board_GPIO_LIS3DH_INT1);
+    if (PIN_registerIntCb(lis3dhPinHandle, (PIN_IntCb)isr_fxn) != 0) {
+        Log_error0("Error registering callback for INT1");
+        return false;
+    }
 
     // Set data rate
     if (Lis3dh_configureDataRate(DATARATE_100HZ)) {
@@ -258,6 +295,17 @@ void Lis3dh_printSample(sensor_data_t data) {
 bool Lis3dh_clearInterrupts() {
     uint8_t int1_src;
     return Lis3dh_readRegister(LIS3DH_INT1_SRC, &int1_src);
+}
+
+/*********************************************************************
+ * @fn      Lis3dh_readWhoAmI
+ *
+ * @brief   Read WHO_AM_I register.
+ *
+ * @param   id - Device ID.
+ */
+static bool Lis3dh_readWhoAmI(uint8_t *id) {
+    return Lis3dh_readRegister(LIS3DH_WHO_AM_I, id);
 }
 
 /*********************************************************************
@@ -448,18 +496,24 @@ static bool Lis3dh_configureFreeFallInterrupt(bool enable, float threshold, int 
  *          data - Data to write to register.
  */
 static bool Lis3dh_writeRegister(uint8_t regAddress, uint8_t data) {
+    bool ret = false;
+
     txBuffer[0] = regAddress;
     txBuffer[1] = data;
 
     spiTransaction.txBuf = txBuffer;
-    spiTransaction.rxBuf = rxBuffer;
+    spiTransaction.rxBuf = NULL;
     spiTransaction.count = 2;
-    if (!Util_spiTransfer(&spiTransaction)) {
+
+    PIN_setOutputValue(lis3dhPinHandle, Board_LIS3DH_CS, 0);
+    ret = Util_spiTransfer(&spiTransaction);
+    PIN_setOutputValue(lis3dhPinHandle, Board_LIS3DH_CS, 1);
+
+    if (!ret) {
         Log_error0("SPI transfer failed");
-        return false;
     }
 
-    return true;
+    return ret;
 }
 
 /*********************************************************************
@@ -471,19 +525,33 @@ static bool Lis3dh_writeRegister(uint8_t regAddress, uint8_t data) {
  *          data - Variable to read data into.
  */
 static bool Lis3dh_readRegister(uint8_t regAddress, uint8_t *data) {
-    txBuffer[0] = regAddress;
+    bool ret = false;
 
+    // Set read request bit
+    txBuffer[0] = regAddress | 0x80;
+
+    // Write register address
     spiTransaction.txBuf = txBuffer;
+    spiTransaction.rxBuf = NULL;
+    spiTransaction.count = 1;
+    PIN_setOutputValue(lis3dhPinHandle, Board_LIS3DH_CS, 0);
+    ret = Util_spiTransfer(&spiTransaction);
+
+    // Read value
+    spiTransaction.txBuf = NULL;
     spiTransaction.rxBuf = rxBuffer;
     spiTransaction.count = 1;
-    if (!Util_spiTransfer(&spiTransaction)) {
+    ret = Util_spiTransfer(&spiTransaction);
+    PIN_setOutputValue(lis3dhPinHandle, Board_LIS3DH_CS, 1);
+
+    if (!ret) {
         Log_error0("SPI transfer failed");
-        return false;
+    }
+    else {
+        (*data) = rxBuffer[0];
     }
 
-    (*data) = rxBuffer[0];
-
-    return true;
+    return ret;
 }
 
 /*********************************************************************
@@ -496,17 +564,14 @@ static bool Lis3dh_readRegister(uint8_t regAddress, uint8_t *data) {
  *          data - Variable to read data into.
  */
 static bool Lis3dh_readRegisterRegion(uint8_t regAddress, int length, uint8_t *data) {
-//    txBuffer[0] = regAddress;
-//
-//    spiTransaction.txBuf = txBuffer;
-//    spiTransaction.rxBuf = rxBuffer;
-//    spiTransaction.count = 1;
-//    if (!SPI_transfer(spiHandle, &spiTransaction)) {
-//        Log_error0("SPI transfer failed");
-//        return false;
-//    }
-//
-//    (*data) = rxBuffer[0];
-//
-//    return true;
+    for (int i = 0; i < length; i++) {
+        if (!Lis3dh_readRegister(regAddress, &data[i])) {
+            return false;
+        }
+
+        regAddress++;
+    }
+
+
+    return true;
 }

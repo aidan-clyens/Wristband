@@ -52,6 +52,7 @@
 
 #include <ti/drivers/Power.h>
 #include <ti/drivers/power/PowerCC26XX.h>
+#include <ti/drivers/PIN.h>
 #include <ti/sysbios/family/arm/m3/Hwi.h>
 #include <ti/sysbios/BIOS.h>
 #include <ti/sysbios/knl/Clock.h>
@@ -65,7 +66,6 @@
 #include "sensors_task.h"
 
 #include <ti/drivers/UART.h>
-#include <ti/drivers/GPIO.h>
 #include <uartlog/UartLog.h>
 
 
@@ -160,9 +160,6 @@ int main()
 
   /* Start tasks of external images - Priority 5 */
   ICall_createRemoteTasks();
-
-  /* Initialize GPIO */
-  GPIO_init();
 
   /* Kick off profile - Priority 3 */
   GAPRole_createTask();

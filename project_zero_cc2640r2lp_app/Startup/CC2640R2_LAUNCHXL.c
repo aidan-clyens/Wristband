@@ -511,13 +511,6 @@ GPIO_PinConfig gpioPinConfigs[] = {
     GPIOCC26XX_DIO_13 | GPIO_DO_NOT_CONFIG,  /* Button 0 */
     GPIOCC26XX_DIO_14 | GPIO_DO_NOT_CONFIG,  /* Button 1 */
 
-    /* LIS3DH */
-    GPIOCC26XX_DIO_22 | GPIO_DO_NOT_CONFIG,  /* LIS3DH INT1 */
-
-    /* MAX32664 */
-    GPIOCC26XX_DIO_15 | GPIO_DO_NOT_CONFIG,  /* MAX32664 MFIO */
-    GPIOCC26XX_DIO_21 | GPIO_DO_NOT_CONFIG,  /* MAX32664 Reset */
-
     /* Output pins */
     GPIOCC26XX_DIO_07 | GPIO_DO_NOT_CONFIG,  /* Green LED */
     GPIOCC26XX_DIO_06 | GPIO_DO_NOT_CONFIG,  /* Red LED */
@@ -542,8 +535,6 @@ GPIO_CallbackFxn gpioCallbackFunctions[] = {
     NULL,  /* Button 1 */
     NULL,  /* CC2640R2_LAUNCHXL_SPI_MASTER_READY */
     NULL,  /* CC2640R2_LAUNCHXL_SPI_SLAVE_READY */
-    NULL,  /* LIS3DH INT1 */
-    NULL,  /* MAX32664 MFIO */
 };
 
 const GPIOCC26XX_Config GPIOCC26XX_config = {
@@ -772,7 +763,10 @@ const PIN_Config BoardGpioInitTable[] = {
     CC2640R2_LAUNCHXL_SPI0_MOSI | PIN_INPUT_EN | PIN_PULLDOWN,                                            /* SPI master out - slave in */
     CC2640R2_LAUNCHXL_SPI0_MISO | PIN_INPUT_EN | PIN_PULLDOWN,                                            /* SPI master in - slave out */
     CC2640R2_LAUNCHXL_SPI0_CLK | PIN_INPUT_EN | PIN_PULLDOWN,                                             /* SPI clock */
-    CC2640R2_LAUNCHXL_SPI0_CSN | PIN_GPIO_OUTPUT_EN | PIN_GPIO_HIGH | PIN_PUSHPULL | PIN_DRVSTR_MIN,      /* SPI chip select */
+    CC2640R2_LAUNCHXL_MAX32664_RESET | PIN_GPIO_OUTPUT_EN | PIN_GPIO_HIGH | PIN_PUSHPULL | PIN_DRVSTR_MAX,/* MAX32664 Reset */
+    CC2640R2_LAUNCHXL_MAX32664_MFIO | PIN_GPIO_OUTPUT_EN | PIN_GPIO_LOW | PIN_PUSHPULL | PIN_DRVSTR_MAX,  /* MAX32664 MFIO */
+    CC2640R2_LAUNCHXL_LIS3DH_CS | PIN_GPIO_OUTPUT_EN | PIN_GPIO_HIGH | PIN_PUSHPULL | PIN_DRVSTR_MAX,     /* LIS3DH chip select */
+    CC2640R2_LAUNCHXL_LIS3DH_INT1 | PIN_INPUT_EN | PIN_PULLUP | PIN_IRQ_NEGEDGE,                          /* LIS3DH INT 1 */
 
     PIN_TERMINATE
 };

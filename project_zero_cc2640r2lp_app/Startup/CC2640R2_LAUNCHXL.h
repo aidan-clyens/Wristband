@@ -149,14 +149,6 @@ extern const PIN_Config BoardGpioInitTable[];
 #define CC2640R2_LAUNCHXL_I2S_MCLK              PIN_UNASSIGNED
 #define CC2640R2_LAUNCHXL_I2S_WCLK              IOID_29
 
-/* LCD (430BOOST - Sharp96 Rev 1.1) */
-#define CC2640R2_LAUNCHXL_LCD_CS                IOID_24 /* SPI chip select */
-#define CC2640R2_LAUNCHXL_LCD_EXTCOMIN          IOID_12 /* External COM inversion */
-#define CC2640R2_LAUNCHXL_LCD_ENABLE            IOID_22 /* LCD enable */
-#define CC2640R2_LAUNCHXL_LCD_POWER             IOID_23 /* LCD power control */
-#define CC2640R2_LAUNCHXL_LCD_CS_ON             1
-#define CC2640R2_LAUNCHXL_LCD_CS_OFF            0
-
 /* LEDs */
 #define CC2640R2_LAUNCHXL_PIN_LED_ON            1
 #define CC2640R2_LAUNCHXL_PIN_LED_OFF           0
@@ -182,7 +174,7 @@ extern const PIN_Config BoardGpioInitTable[];
 #define CC2640R2_LAUNCHXL_SPI0_MISO             IOID_8          /* RF1.20 */
 #define CC2640R2_LAUNCHXL_SPI0_MOSI             IOID_9          /* RF1.18 */
 #define CC2640R2_LAUNCHXL_SPI0_CLK              IOID_10         /* RF1.16 */
-#define CC2640R2_LAUNCHXL_SPI0_CSN              IOID_11
+#define CC2640R2_LAUNCHXL_SPI0_CSN              PIN_UNASSIGNED
 #define CC2640R2_LAUNCHXL_SPI1_MISO             PIN_UNASSIGNED
 #define CC2640R2_LAUNCHXL_SPI1_MOSI             PIN_UNASSIGNED
 #define CC2640R2_LAUNCHXL_SPI1_CLK              PIN_UNASSIGNED
@@ -193,6 +185,15 @@ extern const PIN_Config BoardGpioInitTable[];
 #define CC2640R2_LAUNCHXL_UART_TX               IOID_3          /* TXD */
 #define CC2640R2_LAUNCHXL_UART_CTS              IOID_19         /* CTS */
 #define CC2640R2_LAUNCHXL_UART_RTS              IOID_18         /* RTS */
+
+/* MAX32664 */
+#define CC2640R2_LAUNCHXL_MAX32664_RESET        IOID_21         /* Reset */
+#define CC2640R2_LAUNCHXL_MAX32664_MFIO         IOID_15         /* MFIO */
+
+/* LIS3DH */
+#define CC2640R2_LAUNCHXL_LIS3DH_CS             IOID_12         /* Chip Select */
+#define CC2640R2_LAUNCHXL_LIS3DH_INT1           IOID_22         /* INT 1 */
+
 
 /*!
  *  @brief  Initialize the general board specific settings
@@ -344,9 +345,6 @@ typedef enum CC2640R2_LAUNCHXL_GPIOName {
     CC2640R2_LAUNCHXL_GPIO_S2,
     CC2640R2_LAUNCHXL_SPI_MASTER_READY,
     CC2640R2_LAUNCHXL_SPI_SLAVE_READY,
-    CC2640R2_LAUNCHXL_GPIO_LIS3DH_INT1,
-    CC2640R2_LAUNCHXL_GPIO_MAX32664_MFIO,
-    CC2640R2_LAUNCHXL_GPIO_MAX32664_RESET,
     CC2640R2_LAUNCHXL_GPIO_LED_GREEN,
     CC2640R2_LAUNCHXL_GPIO_LED_RED,
     CC2640R2_LAUNCHXL_GPIO_TMP116_EN,

@@ -16,7 +16,7 @@
 #include <ti/sysbios/knl/Task.h>
 #include <ti/sysbios/knl/Clock.h>
 
-#include <ti/drivers/GPIO.h>
+#include <ti/drivers/PIN.h>
 
 #include <uartlog/UartLog.h>
 
@@ -37,7 +37,7 @@
 // I2C
 #define MAX32664_ADDRESS                    0x55
 #define MAX32664_CMD_DELAY                  6
-#define MAX32664_ENABLE_CMD_DELAY           42
+#define MAX32664_ENABLE_CMD_DELAY           50
 
 // Family names
 #define MAX32664_READ_SENSOR_HUB_STATUS     0x00
@@ -88,6 +88,18 @@ typedef enum {
 /*********************************************************************
  * GLOBAL VARIABLES
  */
+// Pins
+PIN_Config max32664BootPinTable[] = {
+    Board_MAX32664_RESET | PIN_GPIO_OUTPUT_EN | PIN_GPIO_HIGH | PIN_PUSHPULL | PIN_DRVSTR_MAX,
+    Board_MAX32664_MFIO | PIN_GPIO_OUTPUT_EN | PIN_GPIO_LOW | PIN_PUSHPULL | PIN_DRVSTR_MAX,
+    PIN_TERMINATE
+};
+
+PIN_Config max32664PinTable[] = {
+    Board_MAX32664_RESET | PIN_GPIO_OUTPUT_EN | PIN_GPIO_HIGH | PIN_PUSHPULL | PIN_DRVSTR_MAX,
+    Board_MAX32664_MFIO | PIN_INPUT_EN | PIN_PULLUP | PIN_IRQ_NEGEDGE,
+    PIN_TERMINATE
+};
 
 /*********************************************************************
  * LOCAL VARIABLES
@@ -99,6 +111,10 @@ static uint8_t reportBuffer[MAX32664_FIFO_THRESHOLD * MAX32664_MAXIMFAST_REPORT_
 static I2C_Transaction transaction;
 static uint8_t txBuffer[128];
 static uint8_t rxBuffer[128];
+
+// Pins
+static PIN_Handle max32664PinHandle;
+static PIN_State max32664PinState;
 
 
 /*********************************************************************
@@ -135,26 +151,36 @@ max32664_status_t Max32664_initApplicationMode(void *isr_fxn) {
     uint8_t status;
 
     // Initialize GPIO pins
-    GPIO_setConfig(Board_GPIO_MAX32664_MFIO, GPIO_CFG_OUT_STD);
-    GPIO_setConfig(Board_GPIO_MAX32664_RESET, GPIO_CFG_OUT_STD);
+    if (max32664PinHandle) PIN_close(max32664PinHandle);
+    max32664PinHandle = PIN_open(&max32664PinState, max32664BootPinTable);
+    if(!max32664PinHandle) {
+        Log_error0("Error initializing MAX32664 pins");
+        return STATUS_UNKNOWN_ERROR;
+    }
 
-    GPIO_write(Board_GPIO_MAX32664_RESET, GPIO_CFG_OUT_LOW);
-    GPIO_write(Board_GPIO_MAX32664_MFIO, GPIO_CFG_OUT_HIGH);
+    // Write GPIO pins
+    PIN_setOutputValue(max32664PinHandle, Board_MAX32664_RESET, 0);
+    PIN_setOutputValue(max32664PinHandle, Board_MAX32664_MFIO, 1);
 
     // Delay for 10 ms
     Task_sleep(10 * (1000 / Clock_tickPeriod));
 
-    GPIO_write(Board_GPIO_MAX32664_RESET, GPIO_CFG_OUT_HIGH);
+    // Change MFIO pin to an input to trigger interrupts
+    if (max32664PinHandle) PIN_close(max32664PinHandle);
+    max32664PinHandle = PIN_open(&max32664PinState, max32664PinTable);
+    if(!max32664PinHandle) {
+        Log_error0("Error configuring MFIO pin as input");
+        return STATUS_UNKNOWN_ERROR;
+    }
+
+    // Enable MFIO interrupts
+    if (PIN_registerIntCb(max32664PinHandle, (PIN_IntCb)isr_fxn) != 0) {
+        Log_error0("Error registering callback for MFIO");
+        return STATUS_UNKNOWN_ERROR;
+    }
 
     // Delay for 1 s
     Task_sleep(1100 * (1000 / Clock_tickPeriod));
-
-    // Change MFIO pin to an input to trigger interrupts
-    GPIO_setConfig(Board_GPIO_MAX32664_MFIO, GPIO_CFG_IN_PU | GPIO_CFG_IN_INT_FALLING);
-
-    // Enable MFIO interrupts
-    GPIO_setCallback(Board_GPIO_MAX32664_MFIO, (GPIO_CallbackFxn)isr_fxn);
-    GPIO_enableInt(Board_GPIO_MAX32664_MFIO);
 
     // Test I2C connection
     return Max32664_readSensorHubStatus(&status);

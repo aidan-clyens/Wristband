@@ -52,8 +52,7 @@ bool Util_spiInit(void) {
     SPI_Params_init(&spiParams);
     spiParams.mode = SPI_MASTER;
     spiParams.transferMode = SPI_MODE_BLOCKING;
-    spiParams.frameFormat = SPI_POL0_PHA0;
-    spiParams.bitRate = 400000;
+    spiParams.bitRate = 10000000;
     spiParams.dataSize = 8;
 
     SPI_init();
