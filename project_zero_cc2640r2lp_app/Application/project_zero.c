@@ -450,7 +450,111 @@ void ProjectZero_createTask(void)
   Task_construct(&przTask, ProjectZero_taskFxn, &taskParams, NULL);
 }
 
-// TODO: Create emergency alert function
+/*********************************************************************
+ * @fn      ProjectZero_updateHeartRateValue
+ *
+ * @brief   Update heart rate characteristic value.
+ *
+ * @param   value - 16-bit heart rate value.
+ */
+void ProjectZero_updateHeartRateValue(uint16_t value)
+{
+    uint16_t serviceUUID = HEARTRATE_SERVICE_SERV_UUID;
+    uint8_t paramID = HEARTRATE_SERVICE_HEARTRATEVALUE_ID;
+    uint16_t len = HEARTRATE_SERVICE_HEARTRATEVALUE_LEN;
+    uint8_t pValue[2];
+    pValue[1] = value >> 8;
+    pValue[0] = value & 0xFF;
+
+    user_enqueueCharDataMsg(APP_MSG_UPDATE_CHARVAL, 0, serviceUUID, paramID, pValue, len);
+}
+
+/*********************************************************************
+ * @fn      ProjectZero_updateHeartRateConfidence
+ *
+ * @brief   Update heart rate confidence characteristic value.
+ *
+ * @param   value - 8-bit heart rate confidence value.
+ */
+void ProjectZero_updateHeartRateConfidence(uint8_t value)
+{
+    uint16_t serviceUUID = HEARTRATE_SERVICE_SERV_UUID;
+    uint8_t paramID = HEARTRATE_SERVICE_HEARTRATECONFIDENCE_ID;
+    uint16_t len = HEARTRATE_SERVICE_HEARTRATECONFIDENCE_LEN;
+
+    user_enqueueCharDataMsg(APP_MSG_UPDATE_CHARVAL, 0, serviceUUID, paramID, &value, len);
+}
+
+/*********************************************************************
+ * @fn      ProjectZero_updateSpO2Value
+ *
+ * @brief   Update SpO2 characteristic value.
+ *
+ * @param   value - 16-bit SpO2 value.
+ */
+void ProjectZero_updateSpO2Value(uint16_t value)
+{
+    uint16_t serviceUUID = HEARTRATE_SERVICE_SERV_UUID;
+    uint8_t paramID = HEARTRATE_SERVICE_SPO2VALUE_ID;
+    uint16_t len = HEARTRATE_SERVICE_SPO2VALUE_LEN;
+    uint8_t pValue[2];
+    pValue[1] = value >> 8;
+    pValue[0] = value & 0xFF;
+
+    user_enqueueCharDataMsg(APP_MSG_UPDATE_CHARVAL, 0, serviceUUID, paramID, pValue, len);
+}
+
+/*********************************************************************
+ * @fn      ProjectZero_updateSpO2Confidence
+ *
+ * @brief   Update SpO2 confidence characteristic value.
+ *
+ * @param   value - 8-bit SpO2 confidence value.
+ */
+void ProjectZero_updateSpO2Confidence(uint8_t value)
+{
+    uint16_t serviceUUID = HEARTRATE_SERVICE_SERV_UUID;
+    uint8_t paramID = HEARTRATE_SERVICE_SPO2CONFIDENCE_ID;
+    uint16_t len = HEARTRATE_SERVICE_SPO2CONFIDENCE_LEN;
+
+    user_enqueueCharDataMsg(APP_MSG_UPDATE_CHARVAL, 0, serviceUUID, paramID, &value, len);
+}
+
+/*********************************************************************
+ * @fn      ProjectZero_updateScdState
+ *
+ * @brief   Update SCD state characteristic value.
+ *
+ * @param   value - 8-bit SCD state value.
+ */
+void ProjectZero_updateScdState(uint8_t value)
+{
+    uint16_t serviceUUID = HEARTRATE_SERVICE_SERV_UUID;
+    uint8_t paramID = HEARTRATE_SERVICE_SCDSTATE_ID;
+    uint16_t len = HEARTRATE_SERVICE_SCDSTATE_LEN;
+
+    user_enqueueCharDataMsg(APP_MSG_UPDATE_CHARVAL, 0, serviceUUID, paramID, &value, len);
+}
+
+/*********************************************************************
+ * @fn      ProjectZero_triggerEmergencyAlert
+ *
+ * @brief   Trigger an emergency alert to notify the Hub.
+ *
+ * @param   alertType - Alert type (e.g. manual request (0), fall event(1)).
+ */
+void ProjectZero_triggerEmergencyAlert(uint8_t alertType)
+{
+    uint16_t serviceUUID = EMERGENCY_ALERT_SERVICE_SERV_UUID;
+    uint8_t paramID = EMERGENCY_ALERT_SERVICE_ALERTACTIVE_ID;
+    uint16_t len = EMERGENCY_ALERT_SERVICE_ALERTACTIVE_LEN;
+    uint8_t alertActive = 1;
+    user_enqueueCharDataMsg(APP_MSG_UPDATE_CHARVAL, 0, serviceUUID, paramID, &alertActive, len);
+
+    paramID = EMERGENCY_ALERT_SERVICE_ALERTTYPE_ID;
+    len = EMERGENCY_ALERT_SERVICE_ALERTTYPE_LEN;
+    user_enqueueCharDataMsg(APP_MSG_UPDATE_CHARVAL, 0, serviceUUID, paramID, &alertType, len);
+}
 
 /*
  * @brief   Called before the task loop and contains application-specific
@@ -897,10 +1001,8 @@ static void user_handleButtonPress(button_state_t *pState)
     case Board_BUTTON1:
     {
         // Trigger emergency alert
-        uint8_t alertActive = 1;
         uint8_t alertType = 0;  // TODO: Add enum for alert types
-        Emergency_alert_service_SetParameter(EMERGENCY_ALERT_SERVICE_ALERTACTIVE_ID, EMERGENCY_ALERT_SERVICE_ALERTACTIVE_LEN, &alertActive);
-        Emergency_alert_service_SetParameter(EMERGENCY_ALERT_SERVICE_ALERTTYPE_ID, EMERGENCY_ALERT_SERVICE_ALERTTYPE_LEN, &alertType);
+        ProjectZero_triggerEmergencyAlert(alertType);
     }
     break;
   }
@@ -965,7 +1067,8 @@ static uint8_t ProjectZero_processStackMsg(ICall_Hdr *pMsg)
         switch(pMsg->status)
         {
           case HCI_COMMAND_COMPLETE_EVENT_CODE:
-            // Process HCI Command Complete Event
+            // TODO: Process HCI Command Complete Event
+            // TOOD: Check cmdOpcode for HCI_READ_RSSI
             Log_info0("HCI Command Complete Event received");
             break;
 
@@ -1494,8 +1597,8 @@ static void user_updateCharVal(char_data_t *pCharData)
                                        pCharData->data);
         break;
     case EMERGENCY_ALERT_SERVICE_SERV_UUID:
-        Heartrate_service_SetParameter(pCharData->paramID, pCharData->dataLen,
-                                       pCharData->data);
+        Emergency_alert_service_SetParameter(pCharData->paramID, pCharData->dataLen,
+                                             pCharData->data);
         break;
   }
 }

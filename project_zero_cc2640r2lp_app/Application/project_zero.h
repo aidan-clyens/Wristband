@@ -80,6 +80,13 @@ extern "C"
  */
 extern void ProjectZero_createTask(void);
 
+extern void ProjectZero_updateHeartRateValue(uint16_t value);
+extern void ProjectZero_updateHeartRateConfidence(uint8_t value);
+extern void ProjectZero_updateSpO2Value(uint16_t value);
+extern void ProjectZero_updateSpO2Confidence(uint8_t value);
+extern void ProjectZero_updateScdState(uint8_t value);
+
+extern void ProjectZero_triggerEmergencyAlert(uint8_t alertType);
 
 /*********************************************************************
 *********************************************************************/

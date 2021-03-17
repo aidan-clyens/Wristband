@@ -16,23 +16,11 @@ extern "C"
 /*********************************************************************
  * TYPEDEFS
  */
-// Application messages
-typedef struct {
-    uint8_t event;
-    void    *pData;
-} sensors_msg_t;
-
-// Event types
-typedef enum {
-    SENSORS_INIT_HEARTRATE_MODE,
-    SENSORS_TRIGGER_ALERT
-} sensors_event_t;
 
 /*********************************************************************
  * FUNCTIONS
  */
 extern void Sensors_createTask(void);
-extern bool Sensors_enqueueMsg(sensors_event_t event, void *pData);
 
 
 #ifdef __cplusplus

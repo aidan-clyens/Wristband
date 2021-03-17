@@ -15,25 +15,19 @@
 #include <ti/sysbios/knl/Task.h>
 #include <ti/sysbios/knl/Clock.h>
 #include <ti/sysbios/knl/Semaphore.h>
-#include <ti/sysbios/knl/Queue.h>
 
 #include <ti/drivers/GPIO.h>
 
-#include "icall_ble_api.h"
-
 #include <uartlog/UartLog.h>
 #include <Board.h>
-#include <icall.h>
 #include <util.h>
 
 #include "sensors_task.h"
 #include "i2c_util.h"
-#include "spi_util.h""
+#include "spi_util.h"
 #include "lis3dh.h"
 #include "max32664.h"
-
-#include "heartrate_service.h"
-#include "emergency_alert_service.h"
+#include "project_zero.h"
 
 /*********************************************************************
  * CONSTANTS
@@ -65,17 +59,6 @@ uint8_t sensorsTaskStack[SENSORS_THREAD_STACK_SIZE];
 /*********************************************************************
  * LOCAL VARIABLES
  */
-// Entity ID globally used to check for source and/or destination of messages
-static ICall_EntityID selfEntity;
-
-// Event globally used to post local events and pend on system and
-// local events.
-static ICall_SyncHandle syncEvent;
-
-// Queue object used for app messages
-static Queue_Struct appMsgQueue;
-static Queue_Handle appMsgQueueHandle;
-
 // Clocks
 static Clock_Struct accelerometerReadClock;
 static Clock_Handle accelerometerReadClockHandle;
@@ -100,7 +83,6 @@ static uint8_t currentScdState;
 // Task functions
 static void Sensors_init(void);
 static void Sensors_taskFxn(UArg a0, UArg a1);
-static void Sensors_processApplicationMessage(sensors_msg_t *pMsg);
 
 static bool Sensors_initDevices();
 static void Sensors_updateHeartRateData(heartrate_data_t heartRateData);
@@ -137,9 +119,6 @@ void Sensors_createTask(void) {
  * @brief   Initialization for Sensors task.
  */
 static void Sensors_init(void) {
-    // Register application with ICall
-    ICall_registerApp(&selfEntity, &syncEvent);
-
     // Initialize I2C
     if (!Util_i2cInit()) {
         Log_error0("I2C failed to initialize");
@@ -151,10 +130,6 @@ static void Sensors_init(void) {
         Log_error0("SPI failed to initialize");
         while (1) {}
     }
-
-    // Create message queue
-    Queue_construct(&appMsgQueue, NULL);
-    appMsgQueueHandle = Queue_handle(&appMsgQueue);
 
     // Create semaphores
     Semaphore_Params semParams;
@@ -209,10 +184,8 @@ static void Sensors_taskFxn(UArg a0, UArg a1) {
                     Log_info0("Free-fall detected, triggering alert");
 
                     // Trigger emergency alert
-                    uint8_t alertActive = 1;
                     uint8_t alertType = 1;
-                    Emergency_alert_service_SetParameter(EMERGENCY_ALERT_SERVICE_ALERTACTIVE_ID, EMERGENCY_ALERT_SERVICE_ALERTACTIVE_LEN, &alertActive);
-                    Emergency_alert_service_SetParameter(EMERGENCY_ALERT_SERVICE_ALERTTYPE_ID, EMERGENCY_ALERT_SERVICE_ALERTTYPE_LEN, &alertType);
+                    ProjectZero_triggerEmergencyAlert(alertType);
 
                     if (!Lis3dh_clearInterrupts()) {
                         Log_error0("Failed to clear free-fall interrupt");
@@ -235,6 +208,7 @@ static void Sensors_taskFxn(UArg a0, UArg a1) {
                         }
                         else {
 //                            Log_info1("Writing %d accelerometer samples to the MAX32664", SENSORS_NUM_ACCELEROMETER_SAMPLES);
+                            Lis3dh_printSample(accelerometerSamples[0]);
                             // Write samples to MAX32664
 //                            Sensors_sendAccelerometerSamples(accelerometerSamples);
                         }
@@ -263,7 +237,7 @@ static void Sensors_taskFxn(UArg a0, UArg a1) {
                                     if (reports[i].scdState != currentScdState) {
                                         Log_info1("SCD state: %d", reports[i].scdState);
                                         currentScdState = reports[i].scdState;
-                                        Heartrate_service_SetParameter(HEARTRATE_SERVICE_SCDSTATE_ID, HEARTRATE_SERVICE_SCDSTATE_LEN, &currentScdState);
+                                        ProjectZero_updateScdState(currentScdState);
                                     }
 
                                     // Check for non-zero heart rate measurements
@@ -303,7 +277,12 @@ static void Sensors_taskFxn(UArg a0, UArg a1) {
             }
             // Uninitialized State: An error caused the sensors to be re-initialized. Attempt to reconnect with the sensors until successful
             case STATE_UNINITIALIZED: {
-                Sensors_enqueueMsg(SENSORS_INIT_HEARTRATE_MODE, NULL);
+                // Stop clocks
+                Util_stopClock(&accelerometerReadClock);
+
+                if (Sensors_initDevices()) {
+                    sensorsTaskState = STATE_RUNNING;
+                }
 
                 // Delay for 100 ms
                 Task_sleep(100 * (1000 / Clock_tickPeriod));
@@ -311,44 +290,9 @@ static void Sensors_taskFxn(UArg a0, UArg a1) {
                 break;
             }
         }
-
-        // Process messages sent from another task or another context.
-        while(!Queue_empty(appMsgQueueHandle)) {
-            sensors_msg_t *pMsg = (sensors_msg_t *)Util_dequeueMsg(appMsgQueueHandle);
-            if(pMsg) {
-                Sensors_processApplicationMessage(pMsg);
-                // Free the received message.
-                ICall_free(pMsg);
-            }
-        }
     }
 }
 
-/*********************************************************************
- * @fn      Sensors_processApplicationMessage
- *
- * @brief   Process application messages.
- *
- * @param   pMsg  Pointer to the message of type max32664_msg_t.
- */
-static void Sensors_processApplicationMessage(sensors_msg_t *pMsg) {
-    switch(pMsg->event) {
-        case SENSORS_INIT_HEARTRATE_MODE:
-            // Stop clocks
-            Util_stopClock(&accelerometerReadClock);
-
-            if (Sensors_initDevices()) {
-                sensorsTaskState = STATE_RUNNING;
-            }
-            break;
-        default:
-            break;
-    }
-
-    if(pMsg->pData != NULL) {
-        ICall_free(pMsg->pData);
-    }
-}
 
 /*********************************************************************
  * @fn      Sensors_initDevices
@@ -397,19 +341,11 @@ static bool Sensors_initDevices() {
  * @param   heartRateData - Data containing new heart rate and SpO2 values.
  */
 static void Sensors_updateHeartRateData(heartrate_data_t heartRateData) {
-    uint8_t heartRate[2];
-    heartRate[1] = heartRateData.heartRate >> 8;
-    heartRate[0] = heartRateData.heartRate & 0xFF;
-
-    uint8_t spO2[2];
-    spO2[1] = heartRateData.spO2 >> 8;
-    spO2[0] = heartRateData.spO2 & 0xFF;
-
-    Heartrate_service_SetParameter(HEARTRATE_SERVICE_HEARTRATEVALUE_ID, HEARTRATE_SERVICE_HEARTRATEVALUE_LEN, heartRate);
-    Heartrate_service_SetParameter(HEARTRATE_SERVICE_HEARTRATECONFIDENCE_ID, HEARTRATE_SERVICE_HEARTRATECONFIDENCE_LEN, &heartRateData.heartRateConfidence);
-    Heartrate_service_SetParameter(HEARTRATE_SERVICE_SPO2VALUE_ID, HEARTRATE_SERVICE_SPO2VALUE_LEN, spO2);
-    Heartrate_service_SetParameter(HEARTRATE_SERVICE_SPO2CONFIDENCE_ID, HEARTRATE_SERVICE_SPO2CONFIDENCE_LEN, &heartRateData.spO2Confidence);
-    Heartrate_service_SetParameter(HEARTRATE_SERVICE_SCDSTATE_ID, HEARTRATE_SERVICE_SCDSTATE_LEN, &heartRateData.scdState);
+    ProjectZero_updateHeartRateValue(heartRateData.heartRate);
+    ProjectZero_updateHeartRateConfidence(heartRateData.heartRateConfidence);
+    ProjectZero_updateSpO2Value(heartRateData.spO2);
+    ProjectZero_updateSpO2Confidence(heartRateData.spO2Confidence);
+    ProjectZero_updateScdState(heartRateData.scdState);
 }
 
 /*********************************************************************
@@ -475,29 +411,4 @@ static void Sensors_heartRateReadSwiFxn(UArg a0) {
 static void Sensors_freeFallSwiFxn(UArg a0) {
     freeFallInterruptFlag = true;
     Semaphore_post(swiSemaphore);
-}
-
-
-/*********************************************************************
- * @fn     Sensors_enqueueMsg
- *
- * @brief  Utility function that sends the event and data to the application.
- *         Handled in the task loop.
- *
- * @param  event    Event type
- * @param  pData    Pointer to message data
- */
-bool Sensors_enqueueMsg(sensors_event_t event, void *pData) {
-    uint8_t success;
-    sensors_msg_t *pMsg = ICall_malloc(sizeof(sensors_msg_t));
-
-    if(pMsg) {
-        pMsg->event = event;
-        pMsg->pData = pData;
-
-        success = Util_enqueueMsg(appMsgQueueHandle, syncEvent, (uint8_t *)pMsg);
-        return success;
-    }
-
-    return false;
 }
