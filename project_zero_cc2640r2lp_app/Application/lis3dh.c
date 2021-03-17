@@ -564,14 +564,33 @@ static bool Lis3dh_readRegister(uint8_t regAddress, uint8_t *data) {
  *          data - Variable to read data into.
  */
 static bool Lis3dh_readRegisterRegion(uint8_t regAddress, int length, uint8_t *data) {
-    for (int i = 0; i < length; i++) {
-        if (!Lis3dh_readRegister(regAddress, &data[i])) {
-            return false;
-        }
+    bool ret = false;
 
-        regAddress++;
+    // Set read request bit and auto-increment bit
+    txBuffer[0] = regAddress | 0x80 | 0x40;
+
+    // Write register address
+    spiTransaction.txBuf = txBuffer;
+    spiTransaction.rxBuf = NULL;
+    spiTransaction.count = 1;
+    PIN_setOutputValue(lis3dhPinHandle, Board_LIS3DH_CS, 0);
+    ret = Util_spiTransfer(&spiTransaction);
+
+    // Read value
+    spiTransaction.txBuf = NULL;
+    spiTransaction.rxBuf = rxBuffer;
+    spiTransaction.count = length;
+    ret = Util_spiTransfer(&spiTransaction);
+    PIN_setOutputValue(lis3dhPinHandle, Board_LIS3DH_CS, 1);
+
+    if (!ret) {
+        Log_error0("SPI transfer failed");
+    }
+    else {
+        for (int i = 0; i < length; i++) {
+            data[i] = rxBuffer[i];
+        }
     }
 
-
-    return true;
+    return ret;
 }
