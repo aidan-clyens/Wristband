@@ -1,6 +1,0 @@
-{
-    "programmer": "AVR ISP",
-    "port": "COM5",
-    "board": "arduino:avr:uno",
-    "sketch": "i2c_sensor.ino"
-}
