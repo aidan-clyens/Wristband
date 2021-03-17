@@ -326,21 +326,6 @@
 			<locationURI>EXAMPLE_BLE_ROOT/src/stack/osal_icall_ble.c</locationURI>
 		</link>
 		<link>
-			<name>TOOLS/build_components.opt</name>
-			<type>1</type>
-			<locationURI>SRC_BLE_DIR/config/build_components.opt</locationURI>
-		</link>
-		<link>
-			<name>TOOLS/onboard.c</name>
-			<type>1</type>
-			<locationURI>SRC_BLE_DIR/common/cc26xx/onboard.c</locationURI>
-		</link>
-		<link>
-			<name>TOOLS/onboard.h</name>
-			<type>1</type>
-			<locationURI>SRC_BLE_DIR/common/cc26xx/onboard.h</locationURI>
-		</link>
-		<link>
 			<name>HAL/Common/hal_assert.c</name>
 			<type>1</type>
 			<locationURI>SRC_COMMON_DIR1/hal/src/common/hal_assert.c</locationURI>

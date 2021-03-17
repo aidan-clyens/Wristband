@@ -14,5 +14,5 @@
 	<origin value="C:\ti\simplelink_cc2640r2_sdk_4_30_00_08\examples\rtos\CC2640R2_LAUNCHXL\ble5stack\project_zero\tirtos\ccs\ble5_project_zero_cc2640r2lp_app.projectspec"/>
 	<filesToOpen value=""/>
 	<connection value="common/targetdb/connections/TIXDS110_Connection.xml"/>
-	<isTargetManual value="false"/>
+	<isTargetManual value="true"/>
 </projectOptions>

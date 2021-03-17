@@ -43,11 +43,6 @@
 			<locationURI>virtual:/virtual</locationURI>
 		</link>
 		<link>
-			<name>Application/util.c</name>
-			<type>1</type>
-			<locationURI>SRC_BLE_DIR/common/cc26xx/util.c</locationURI>
-		</link>
-		<link>
 			<name>Drivers/ECC</name>
 			<type>2</type>
 			<locationURI>virtual:/virtual</locationURI>
@@ -106,41 +101,6 @@
 			<name>ICallBLE/icall_ble_apimsg.h</name>
 			<type>1</type>
 			<locationURI>SRC_BLE_DIR/icall/inc/icall_ble_apimsg.h</locationURI>
-		</link>
-		<link>
-			<name>Include/gap.h</name>
-			<type>1</type>
-			<locationURI>SRC_BLE_DIR/inc/gap.h</locationURI>
-		</link>
-		<link>
-			<name>Include/gapgattserver.h</name>
-			<type>1</type>
-			<locationURI>SRC_BLE_DIR/inc/gapgattserver.h</locationURI>
-		</link>
-		<link>
-			<name>Include/gatt.h</name>
-			<type>1</type>
-			<locationURI>SRC_BLE_DIR/inc/gatt.h</locationURI>
-		</link>
-		<link>
-			<name>Include/hci.h</name>
-			<type>1</type>
-			<locationURI>SRC_BLE_DIR/inc/hci.h</locationURI>
-		</link>
-		<link>
-			<name>Include/osal_snv.h</name>
-			<type>1</type>
-			<locationURI>SRC_BLE_DIR/osal/src/inc/osal_snv.h</locationURI>
-		</link>
-		<link>
-			<name>Startup/UartLog.c</name>
-			<type>1</type>
-			<locationURI>EXAMPLE_BLE_ROOT/src/extra/uartlog/UartLog.c</locationURI>
-		</link>
-		<link>
-			<name>TOOLS/cc26xx_app.cmd</name>
-			<type>1</type>
-			<locationURI>SRC_BLE_DIR/common/cc26xx/ccs/cc26xx_app.cmd</locationURI>
 		</link>
 		<link>
 			<name>Drivers/ECC/ECCROMCC26XX.c</name>
