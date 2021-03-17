@@ -17,7 +17,7 @@ extern "C"
  * CONSTANTS
  */
 #define MAX32664_MAXIMFAST_REPORT_ALGO_SIZE     6
-#define MAX32664_FIFO_THRESHOLD                 5
+#define MAX32664_FIFO_THRESHOLD                 10
 
 /*********************************************************************
  * TYPEDEFS
