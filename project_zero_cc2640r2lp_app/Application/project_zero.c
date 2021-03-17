@@ -116,6 +116,9 @@
                                               PRZ_PERIODIC_EVT     | \
                                               PRZ_APP_MSG_EVT)
 
+// Period to update RSSI of connected device
+#define PZ_RSSI_UPDATE_PERIOD                 5000
+
 // Set the register cause to the registration bit-mask
 #define CONNECTION_EVENT_REGISTER_BIT_SET(registerCause) (connectionEventRegisterCauseBitMap |= registerCause )
 
@@ -142,6 +145,7 @@ typedef enum
   APP_MSG_BUTTON_DEBOUNCED,    /* A button has been debounced with new value  */
   APP_MSG_SEND_PASSCODE,       /* A pass-code/PIN is requested during pairing */
   APP_MSG_PRZ_CONN_EVT,        /* Connection Event finished report            */
+  APP_MSG_UPDATE_RSSI,         /* Update RSSI of connected devices            */
 } app_msg_types_t;
 
 // Struct for messages sent to the application task
@@ -230,6 +234,8 @@ static uint8_t attDeviceName[GAP_DEVICE_NAME_LEN] = "Project Zero R2";
 static gattMsgEvent_t *pAttRsp = NULL;
 static uint8_t rspTxRetry = 0;
 
+// Handle for connected BLE device
+static uint16_t peerConnHandle;
 
 /* Pin driver handles */
 static PIN_Handle buttonPinHandle;
@@ -262,7 +268,10 @@ PIN_Config buttonPinTable[] = {
 // Clock objects for debouncing the buttons
 static Clock_Struct button0DebounceClock;
 static Clock_Struct button1DebounceClock;
-// TODO: Add clock to read RSSI
+
+// Clock object for updating RSSI
+static Clock_Struct rssiUpdateClock;
+static Clock_Handle rssiUpdateClockHandle;
 
 // State of the buttons
 static uint8_t button0State = 0;
@@ -288,6 +297,7 @@ static void ProjectZero_freeAttRsp(uint8_t status);
 
 static void ProjectZero_connEvtCB(Gap_ConnEventRpt_t *pReport);
 static void ProjectZero_processConnEvt(Gap_ConnEventRpt_t *pReport);
+static void ProjectZero_processCmdCompleteEvt(hciEvt_CmdComplete_t *pMsg);
 
 static void user_processGapStateChangeEvt(gaprole_States_t newState);
 static void user_gapStateChangeCB(gaprole_States_t newState);
@@ -315,6 +325,9 @@ static void user_enqueueCharDataMsg(app_msg_types_t appMsgType, uint16_t connHan
                                     uint16_t serviceUUID, uint8_t paramID,
                                     uint8_t *pValue, uint16_t len);
 static void buttonCallbackFxn(PIN_Handle handle, PIN_Id pinId);
+
+// RSSI update SWI
+static void rssiUpdateSwi();
 
 static char *Util_convertArrayToHexString(uint8_t const *src, uint8_t src_len,
                                           uint8_t *dst, uint8_t dst_len);
@@ -627,6 +640,14 @@ static void ProjectZero_init(void)
                   50 * (1000/Clock_tickPeriod),
                   &clockParams);
 
+  // Create the clock object for updating RSSI
+  rssiUpdateClockHandle = Util_constructClock(&rssiUpdateClock,
+                                              rssiUpdateSwi,
+                                              PZ_RSSI_UPDATE_PERIOD,
+                                              PZ_RSSI_UPDATE_PERIOD,
+                                              1,
+                                              0);
+
   // ******************************************************************
   // BLE Stack initialization
   // ******************************************************************
@@ -733,6 +754,8 @@ static void ProjectZero_init(void)
 
   // Register for GATT local events and ATT Responses pending for transmission
   GATT_RegisterForMsgs(selfEntity);
+
+  peerConnHandle = LINKDB_CONNHANDLE_INVALID;
 }
 
 
@@ -881,6 +904,15 @@ static void user_processApplicationMessage(app_msg_t *pMsg)
         ProjectZero_processConnEvt((Gap_ConnEventRpt_t *)pMsg->pdu);
         break;
     }
+
+    case APP_MSG_UPDATE_RSSI:
+      {
+          if (peerConnHandle != LINKDB_CONNHANDLE_INVALID) {
+              Log_info0("Read RSSI");
+              HCI_ReadRssiCmd(peerConnHandle);
+          }
+      }
+      break;
   }
 }
 
@@ -947,10 +979,11 @@ static void user_processGapStateChangeEvt(gaprole_States_t newState)
         uint8_t peerAddress[B_ADDR_LEN];
 
         GAPRole_GetParameter(GAPROLE_CONN_BD_ADDR, peerAddress);
+        GAPRole_GetParameter(GAPROLE_CONNHANDLE, &peerConnHandle);
 
         char *cstr_peerAddress = Util_convertBdAddr2Str(peerAddress);
         Log_info1("Connected. Peer address: \x1b[32m%s\x1b[0m", (IArg)cstr_peerAddress);
-       }
+      }
       break;
 
     case GAPROLE_CONNECTED_ADV:
@@ -959,6 +992,7 @@ static void user_processGapStateChangeEvt(gaprole_States_t newState)
 
     case GAPROLE_WAITING:
       Log_info0("Disconnected / Idle");
+      peerConnHandle = LINKDB_CONNHANDLE_INVALID;
       break;
 
     case GAPROLE_WAITING_AFTER_TIMEOUT:
@@ -1067,9 +1101,7 @@ static uint8_t ProjectZero_processStackMsg(ICall_Hdr *pMsg)
         switch(pMsg->status)
         {
           case HCI_COMMAND_COMPLETE_EVENT_CODE:
-            // TODO: Process HCI Command Complete Event
-            // TOOD: Check cmdOpcode for HCI_READ_RSSI
-            Log_info0("HCI Command Complete Event received");
+            ProjectZero_processCmdCompleteEvt((hciEvt_CmdComplete_t *)pMsg);
             break;
 
           default:
@@ -1161,6 +1193,63 @@ static void ProjectZero_processConnEvt(Gap_ConnEventRpt_t *pReport)
     ProjectZero_sendAttRsp();
   }
 
+}
+
+/*********************************************************************
+ * @fn      ProjectZero_processCmdCompleteEvt
+ *
+ * @brief   Process an incoming OSAL HCI Command Complete Event.
+ *
+ * @param   pMsg - message to process
+ */
+static void ProjectZero_processCmdCompleteEvt(hciEvt_CmdComplete_t *pMsg)
+{
+    uint8_t status = pMsg->pReturnParam[0];
+
+    //Find which command this command complete is for
+    switch(pMsg->cmdOpcode)
+    {
+    case HCI_READ_RSSI:
+    {
+            int8 rssi = (int8)pMsg->pReturnParam[3];
+
+        // Display RSSI value, if RSSI is higher than threshold, change to faster PHY
+        if(status == SUCCESS)
+        {
+            uint16_t handle = BUILD_UINT16(pMsg->pReturnParam[1],
+                                           pMsg->pReturnParam[2]);
+
+            Log_info2("RSSI:%d, connHandle %d",
+                      (uint32_t)(rssi),
+                      (uint32_t)handle);
+
+            // Update RSSI value
+            rssi *= -1;
+
+            user_enqueueCharDataMsg(APP_MSG_UPDATE_CHARVAL,
+                                    handle,
+                                    CONFIG_SERVICE_SERV_UUID,
+                                    CONFIG_SERVICE_RSSI_ID,
+                                    &rssi,
+                                    CONFIG_SERVICE_RSSI_LEN);
+
+        } // end of if (status == SUCCESS)
+        break;
+    }
+
+    case HCI_LE_READ_PHY:
+    {
+        if(status == SUCCESS)
+        {
+            Log_info2("RXPh: %d, TXPh: %d",
+                      pMsg->pReturnParam[3], pMsg->pReturnParam[4]);
+        }
+        break;
+    }
+
+    default:
+        break;
+    } // end of switch (pMsg->cmdOpcode)
 }
 
 
@@ -1449,6 +1538,16 @@ static void buttonDebounceSwiFxn(UArg buttonId)
     user_enqueueRawAppMsg(APP_MSG_BUTTON_DEBOUNCED,
                       (uint8_t *)&buttonMsg, sizeof(buttonMsg));
   }
+}
+
+/*********************************************************************
+ * @fn     rssiUpdateSwi
+ *
+ * @brief  Callback to update RSSI value of connected device.
+ */
+static void rssiUpdateSwi()
+{
+    user_enqueueRawAppMsg(APP_MSG_UPDATE_RSSI, NULL, 0);
 }
 
 /*
