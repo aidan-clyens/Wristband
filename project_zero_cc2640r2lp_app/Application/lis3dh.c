@@ -107,6 +107,8 @@ PIN_Config lis3dhPinTable[] = {
 /*********************************************************************
  * LOCAL VARIABLES
  */
+static int fullScale;
+
 // SPI
 static SPI_Transaction spiTransaction;
 
@@ -215,6 +217,32 @@ bool Lis3dh_init(void *isr_fxn) {
     }
     else {
         Log_error0("Error enabling FIFO");
+        return false;
+    }
+
+    // Get full scale range and save for later
+    if (Lis3dh_getFullScaleSelection(&fullScale)) {
+        switch (fullScale) {
+            case 2:
+                fullScale = 15987;
+                break;
+            case 4:
+                fullScale = 7840;
+                break;
+            case 8:
+                fullScale = 3883;
+                break;
+            case 16:
+                fullScale = 1280;
+                break;
+            default:
+                fullScale = 1;
+                break;
+        }
+        Log_info1("Using full scale range: %d", fullScale);
+    }
+    else {
+        Log_error0("Error reading full scale");
         return false;
     }
 
