@@ -188,11 +188,6 @@
 			<locationURI>SRC_BLE_DIR/common/cc26xx/rcosc/ccfg_app_ble_rcosc.c</locationURI>
 		</link>
 		<link>
-			<name>Startup/main.c</name>
-			<type>1</type>
-			<locationURI>EXAMPLE_BLE_ROOT/src/app/main.c</locationURI>
-		</link>
-		<link>
 			<name>TOOLS/cc26xx_app.cmd</name>
 			<type>1</type>
 			<locationURI>SRC_BLE_DIR/common/cc26xx/ccs/cc26xx_app.cmd</locationURI>
