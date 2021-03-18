@@ -117,7 +117,10 @@
                                               PRZ_APP_MSG_EVT)
 
 // Period to update RSSI of connected device
-#define PZ_RSSI_UPDATE_PERIOD                 5000
+#define PRZ_RSSI_UPDATE_PERIOD_MS             5000
+
+// Period to blink LED
+#define PRZ_LED_BLINK_PERIOD_MS               100
 
 // Set the register cause to the registration bit-mask
 #define CONNECTION_EVENT_REGISTER_BIT_SET(registerCause) (connectionEventRegisterCauseBitMap |= registerCause )
@@ -147,6 +150,7 @@ typedef enum
   APP_MSG_PRZ_CONN_EVT,        /* Connection Event finished report            */
   APP_MSG_UPDATE_RSSI,         /* Update RSSI of connected devices            */
   APP_MSG_LED_EVT,             /* Change value of LEDs                        */
+  APP_MSG_LED_BLINK,           /* Blink LED                                   */
 } app_msg_types_t;
 
 // State indicated LED change
@@ -284,6 +288,10 @@ static Clock_Struct button1DebounceClock;
 static Clock_Struct rssiUpdateClock;
 static Clock_Handle rssiUpdateClockHandle;
 
+// Clock object for blinking the LED
+static Clock_Struct ledBlinkClock;
+static Clock_Handle ledBlinkClockHandle;
+
 // State of the buttons
 static uint8_t button0State = 0;
 static uint8_t button1State = 0;
@@ -341,6 +349,9 @@ static void buttonCallbackFxn(PIN_Handle handle, PIN_Id pinId);
 
 // RSSI update SWI
 static void rssiUpdateSwi();
+
+// LED blink SWI
+static void ledBlinkSwi();
 
 static char *Util_convertArrayToHexString(uint8_t const *src, uint8_t src_len,
                                           uint8_t *dst, uint8_t dst_len);
@@ -565,17 +576,17 @@ void ProjectZero_updateScdState(uint8_t value)
     led_event_t event;
     if (value == 0) {
         // Change LED to indicate heart rate undetected
-        led_event_t event = LED_HEARTRATE_UNDETECTED;
+        event = LED_HEARTRATE_UNDETECTED;
         user_enqueueRawAppMsg(APP_MSG_LED_EVT, (uint8_t *)&event, sizeof(event));
     }
     else if (value == 1) {
         // Change LED to indicate heart rate started reading
-        led_event_t event = LED_HEARTRATE_READING;
+        event = LED_HEARTRATE_READING;
         user_enqueueRawAppMsg(APP_MSG_LED_EVT, (uint8_t *)&event, sizeof(event));
     }
     else if (value == 3) {
         // Change LED to indicate heart rate reading complete
-        led_event_t event = LED_HEARTRATE_COMPLETE;
+        event = LED_HEARTRATE_COMPLETE;
         user_enqueueRawAppMsg(APP_MSG_LED_EVT, (uint8_t *)&event, sizeof(event));
     }
 }
@@ -674,10 +685,18 @@ static void ProjectZero_init(void)
   // Create the clock object for updating RSSI
   rssiUpdateClockHandle = Util_constructClock(&rssiUpdateClock,
                                               rssiUpdateSwi,
-                                              PZ_RSSI_UPDATE_PERIOD,
-                                              PZ_RSSI_UPDATE_PERIOD,
+                                              PRZ_RSSI_UPDATE_PERIOD_MS,
+                                              PRZ_RSSI_UPDATE_PERIOD_MS,
                                               1,
                                               0);
+
+  // Create the clock object for blinking the LED (do not start)
+  ledBlinkClockHandle = Util_constructClock(&ledBlinkClock,
+                                            ledBlinkSwi,
+                                            PRZ_LED_BLINK_PERIOD_MS,
+                                            PRZ_LED_BLINK_PERIOD_MS,
+                                            0,
+                                            0);
 
   // ******************************************************************
   // BLE Stack initialization
@@ -950,6 +969,12 @@ static void user_processApplicationMessage(app_msg_t *pMsg)
           user_handleLedEvt(*ledEvt);
       }
       break;
+    case APP_MSG_LED_BLINK:
+      {
+          int value = PIN_getOutputValue(Board_RLED);
+          value = (value == 0) ? 1 : 0;
+          PIN_setOutputValue(ledPinHandle, Board_RLED, value);
+      }
   }
 }
 
@@ -1109,14 +1134,18 @@ static void user_handleLedEvt(led_event_t event)
         break;
       case LED_HEARTRATE_UNDETECTED:
         Log_info0("LED Event: Heart Rate undetected, turning off RED LED");
+        Util_stopClock(&ledBlinkClock);
+
         PIN_setOutputValue(ledPinHandle, Board_RLED, 0);
         break;
       case LED_HEARTRATE_READING:
         Log_info0("LED Event: Heart Rate reading started, blinking RED LED");
-        PIN_setOutputValue(ledPinHandle, Board_RLED, 0);
+        Util_startClock(&ledBlinkClock);
         break;
       case LED_HEARTRATE_COMPLETE:
         Log_info0("LED Event: Heart Rate reading complete, turning on RED LED");
+        Util_stopClock(&ledBlinkClock);
+
         PIN_setOutputValue(ledPinHandle, Board_RLED, 1);
         break;
     }
@@ -1628,6 +1657,16 @@ static void buttonDebounceSwiFxn(UArg buttonId)
 static void rssiUpdateSwi()
 {
     user_enqueueRawAppMsg(APP_MSG_UPDATE_RSSI, NULL, 0);
+}
+
+/*********************************************************************
+ * @fn     ledBlinkSwi
+ *
+ * @brief  Callback to toggle the LED to blink.
+ */
+static void ledBlinkSwi()
+{
+    user_enqueueRawAppMsg(APP_MSG_LED_BLINK, NULL, 0);
 }
 
 /*
