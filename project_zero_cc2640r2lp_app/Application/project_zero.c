@@ -154,6 +154,9 @@ typedef enum
 {
     LED_BLE_CONNECTED,
     LED_BLE_DISCONNECTED,
+    LED_HEARTRATE_READING,
+    LED_HEARTRATE_COMPLETE,
+    LED_HEARTRATE_UNDETECTED,
 } led_event_t;
 
 // Struct for messages sent to the application task
@@ -557,6 +560,24 @@ void ProjectZero_updateScdState(uint8_t value)
     uint16_t len = HEARTRATE_SERVICE_SCDSTATE_LEN;
 
     user_enqueueCharDataMsg(APP_MSG_UPDATE_CHARVAL, 0, serviceUUID, paramID, &value, len);
+
+    // Determine LED state during heart rate measurement
+    led_event_t event;
+    if (value == 0) {
+        // Change LED to indicate heart rate undetected
+        led_event_t event = LED_HEARTRATE_UNDETECTED;
+        user_enqueueRawAppMsg(APP_MSG_LED_EVT, (uint8_t *)&event, sizeof(event));
+    }
+    else if (value == 1) {
+        // Change LED to indicate heart rate started reading
+        led_event_t event = LED_HEARTRATE_READING;
+        user_enqueueRawAppMsg(APP_MSG_LED_EVT, (uint8_t *)&event, sizeof(event));
+    }
+    else if (value == 3) {
+        // Change LED to indicate heart rate reading complete
+        led_event_t event = LED_HEARTRATE_COMPLETE;
+        user_enqueueRawAppMsg(APP_MSG_LED_EVT, (uint8_t *)&event, sizeof(event));
+    }
 }
 
 /*********************************************************************
@@ -1085,6 +1106,18 @@ static void user_handleLedEvt(led_event_t event)
       case LED_BLE_DISCONNECTED:
         Log_info0("LED Event: BLE Disconnected, turning off GREEN LED");
         PIN_setOutputValue(ledPinHandle, Board_GLED, 0);
+        break;
+      case LED_HEARTRATE_UNDETECTED:
+        Log_info0("LED Event: Heart Rate undetected, turning off RED LED");
+        PIN_setOutputValue(ledPinHandle, Board_RLED, 0);
+        break;
+      case LED_HEARTRATE_READING:
+        Log_info0("LED Event: Heart Rate reading started, blinking RED LED");
+        PIN_setOutputValue(ledPinHandle, Board_RLED, 0);
+        break;
+      case LED_HEARTRATE_COMPLETE:
+        Log_info0("LED Event: Heart Rate reading complete, turning on RED LED");
+        PIN_setOutputValue(ledPinHandle, Board_RLED, 1);
         break;
     }
 }
