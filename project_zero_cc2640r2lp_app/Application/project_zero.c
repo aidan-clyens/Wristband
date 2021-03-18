@@ -146,7 +146,15 @@ typedef enum
   APP_MSG_SEND_PASSCODE,       /* A pass-code/PIN is requested during pairing */
   APP_MSG_PRZ_CONN_EVT,        /* Connection Event finished report            */
   APP_MSG_UPDATE_RSSI,         /* Update RSSI of connected devices            */
+  APP_MSG_LED_EVT,             /* Change value of LEDs                        */
 } app_msg_types_t;
+
+// State indicated LED change
+typedef enum
+{
+    LED_BLE_CONNECTED,
+    LED_BLE_DISCONNECTED,
+} led_event_t;
 
 // Struct for messages sent to the application task
 typedef struct
@@ -308,6 +316,8 @@ static void user_gapBondMgr_pairStateCB(uint16_t connHandle, uint8_t state,
 
 static void buttonDebounceSwiFxn(UArg buttonId);
 static void user_handleButtonPress(button_state_t *pState);
+
+static void user_handleLedEvt(led_event_t event);
 
 // Generic callback handlers for value changes in services.
 static void user_service_ValueChangeCB( uint16_t connHandle, uint16_t svcUuid, uint8_t paramID, uint8_t *pValue, uint16_t len );
@@ -913,6 +923,12 @@ static void user_processApplicationMessage(app_msg_t *pMsg)
           }
       }
       break;
+    case APP_MSG_LED_EVT:
+      {
+          led_event_t *ledEvt = (led_event_t *)pMsg->pdu;
+          user_handleLedEvt(*ledEvt);
+      }
+      break;
   }
 }
 
@@ -983,6 +999,10 @@ static void user_processGapStateChangeEvt(gaprole_States_t newState)
 
         char *cstr_peerAddress = Util_convertBdAddr2Str(peerAddress);
         Log_info1("Connected. Peer address: \x1b[32m%s\x1b[0m", (IArg)cstr_peerAddress);
+
+        // Change LED to indicated BLE connected
+        led_event_t event = LED_BLE_CONNECTED;
+        user_enqueueRawAppMsg(APP_MSG_LED_EVT, (uint8_t *)&event, sizeof(event));
       }
       break;
 
@@ -991,8 +1011,14 @@ static void user_processGapStateChangeEvt(gaprole_States_t newState)
       break;
 
     case GAPROLE_WAITING:
-      Log_info0("Disconnected / Idle");
-      peerConnHandle = LINKDB_CONNHANDLE_INVALID;
+      {
+        Log_info0("Disconnected / Idle");
+        peerConnHandle = LINKDB_CONNHANDLE_INVALID;
+
+        // Change LED to indicated BLE disconnected
+        led_event_t event = LED_BLE_DISCONNECTED;
+        user_enqueueRawAppMsg(APP_MSG_LED_EVT, (uint8_t *)&event, sizeof(event));
+      }
       break;
 
     case GAPROLE_WAITING_AFTER_TIMEOUT:
@@ -1040,6 +1066,27 @@ static void user_handleButtonPress(button_state_t *pState)
     }
     break;
   }
+}
+
+/*
+ * @brief   Change LED states depending on different events.
+
+ * @param   event - Event used to switch between different LED states.
+ *
+ * @return  None.
+ */
+static void user_handleLedEvt(led_event_t event)
+{
+    switch (event) {
+      case LED_BLE_CONNECTED:
+        Log_info0("LED Event: BLE Connected, turning on GREEN LED");
+        PIN_setOutputValue(ledPinHandle, Board_GLED, 1);
+        break;
+      case LED_BLE_DISCONNECTED:
+        Log_info0("LED Event: BLE Disconnected, turning off GREEN LED");
+        PIN_setOutputValue(ledPinHandle, Board_GLED, 0);
+        break;
+    }
 }
 
 /*
