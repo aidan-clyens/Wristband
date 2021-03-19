@@ -504,6 +504,10 @@ void ProjectZero_updateHeartRateValue(uint16_t value)
     pValue[0] = value & 0xFF;
 
     user_enqueueCharDataMsg(APP_MSG_UPDATE_CHARVAL, 0, serviceUUID, paramID, pValue, len);
+
+    // Change LED to indicate heart rate reading complete
+    led_event_t event = LED_HEARTRATE_COMPLETE;
+    user_enqueueRawAppMsg(APP_MSG_LED_EVT, (uint8_t *)&event, sizeof(event));
 }
 
 /*********************************************************************
@@ -582,11 +586,6 @@ void ProjectZero_updateScdState(uint8_t value)
     else if (value == 1) {
         // Change LED to indicate heart rate started reading
         event = LED_HEARTRATE_READING;
-        user_enqueueRawAppMsg(APP_MSG_LED_EVT, (uint8_t *)&event, sizeof(event));
-    }
-    else if (value == 3) {
-        // Change LED to indicate heart rate reading complete
-        event = LED_HEARTRATE_COMPLETE;
         user_enqueueRawAppMsg(APP_MSG_LED_EVT, (uint8_t *)&event, sizeof(event));
     }
 }
