@@ -512,8 +512,8 @@ GPIO_PinConfig gpioPinConfigs[] = {
     GPIOCC26XX_DIO_14 | GPIO_DO_NOT_CONFIG,  /* Button 1 */
 
     /* Output pins */
-    GPIOCC26XX_DIO_07 | GPIO_DO_NOT_CONFIG,  /* Green LED */
-    GPIOCC26XX_DIO_06 | GPIO_DO_NOT_CONFIG,  /* Red LED */
+    GPIOCC26XX_DIO_21 | GPIO_DO_NOT_CONFIG,  /* Green LED */
+    GPIOCC26XX_DIO_22 | GPIO_DO_NOT_CONFIG,  /* Red LED */
     GPIOCC26XX_DIO_30 | GPIO_DO_NOT_CONFIG,  /* TMP116_EN */
 
     /* SPI Flash CSN */

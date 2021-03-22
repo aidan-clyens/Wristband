@@ -152,8 +152,8 @@ extern const PIN_Config BoardGpioInitTable[];
 /* LEDs */
 #define CC2640R2_PCB_PIN_LED_ON            1
 #define CC2640R2_PCB_PIN_LED_OFF           0
-#define CC2640R2_PCB_PIN_RLED              IOID_6
-#define CC2640R2_PCB_PIN_GLED              IOID_7
+#define CC2640R2_PCB_PIN_RLED              IOID_21
+#define CC2640R2_PCB_PIN_GLED              IOID_22
 
 /* PWM Outputs */
 #define CC2640R2_PCB_PWMPIN0               CC2640R2_PCB_PIN_RLED
