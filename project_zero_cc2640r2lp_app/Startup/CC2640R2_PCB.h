@@ -190,8 +190,8 @@ extern const PIN_Config BoardGpioInitTable[];
 #define CC2640R2_PCB_MAX32664_MFIO         IOID_19         /* MFIO */
 
 /* LIS3DH */
-#define CC2640R2_PCB_LIS3DH_CS             IOID_12         /* Chip Select */
-#define CC2640R2_PCB_LIS3DH_INT1           IOID_22         /* INT 1 */
+#define CC2640R2_PCB_LIS3DH_CS             IOID_10         /* Chip Select */
+#define CC2640R2_PCB_LIS3DH_INT1           IOID_0          /* INT 1 */
 
 
 /*!
