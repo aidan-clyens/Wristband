@@ -39,7 +39,12 @@
 #define SENSORS_ACCELEROMETER_POLLING_PERIOD_MS         200    // Change to 200 ms
 
 // Data
+#ifdef USE_FINGER_SENSOR
+#define SENSORS_NUM_ACCELEROMETER_SAMPLES               20
+#else
 #define SENSORS_NUM_ACCELEROMETER_SAMPLES               5
+#endif
+
 #define SENSORS_ACCELEROMETER_SAMPLE_SIZE               6
 
 /*********************************************************************
@@ -318,7 +323,7 @@ static bool Sensors_initDevices() {
 
     // Start MAX32664 Heart Rate Algorithm
     Log_info0("Initializing MAX32664 Heart Rate Algorithm");
-    ret = Max32664_initMaximFastAlgorithm();
+    ret = Max32664_initHeartRateAlgorithm();
     if (ret != STATUS_SUCCESS) {
         Log_error1("Error initializing MAX32664 Heart Rate Algorithm (Error: %d)", ret);
         return false;

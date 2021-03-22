@@ -113,7 +113,7 @@ static int fullScale;
 static SPI_Transaction spiTransaction;
 
 static uint8_t txBuffer[32];
-static uint8_t rxBuffer[32];
+static uint8_t rxBuffer[128];
 
 // Pins
 static PIN_Handle lis3dhPinHandle;
@@ -176,6 +176,7 @@ bool Lis3dh_init(void *isr_fxn) {
     }
 
     // Set data rate
+#ifdef USE_FINGER_SENSOR
     if (Lis3dh_configureDataRate(DATARATE_100HZ)) {
         Log_info0("Set data rate to 100Hz");
     }
@@ -183,6 +184,15 @@ bool Lis3dh_init(void *isr_fxn) {
         Log_error0("Error setting data rate");
         return false;
     }
+#else
+    if (Lis3dh_configureDataRate(DATARATE_25HZ)) {
+        Log_info0("Set data rate to 25Hz");
+    }
+    else {
+        Log_error0("Error setting data rate");
+        return false;
+    }
+#endif
 
     // Enable low power mode
     if (Lis3dh_setLowPowerMode(true)) {

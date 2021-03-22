@@ -85,6 +85,29 @@ typedef enum {
   OUTPUT_MODE_SAMPLE_COUNTER_BYTE_SENSOR_AND_ALGORITHM_DATA = 0x07
 } output_mode_t;
 
+#ifdef USE_FINGER_SENSOR
+// MaximFast (Version A) algorithm report entry indices
+typedef enum {
+    REPORT_HEARTRATE_MSB_INDEX = 0,
+    REPORT_HEARTRATE_LSB_INDEX = 1,
+    REPORT_HEARTRATE_CONFIDENCE_INDEX = 2,
+    REPORT_SPO2_MSB_INDEX = 3,
+    REPORT_SPO2_LSB_INDEX = 4,
+    REPORT_SCD_STATE_INDEX = 5
+} report_entry_t;
+#else
+// WHRM (Version C) algorithm report entry indices
+typedef enum {
+    REPORT_HEARTRATE_MSB_INDEX = 1,
+    REPORT_HEARTRATE_LSB_INDEX = 2,
+    REPORT_HEARTRATE_CONFIDENCE_INDEX = 3,
+    REPORT_SPO2_MSB_INDEX = 11,
+    REPORT_SPO2_LSB_INDEX = 12,
+    REPORT_SPO2_CONFIDENCE_INDEX = 10,
+    REPORT_SCD_STATE_INDEX = 19
+} report_entry_t;
+#endif
+
 /*********************************************************************
  * GLOBAL VARIABLES
  */
@@ -105,7 +128,7 @@ PIN_Config max32664PinTable[] = {
  * LOCAL VARIABLES
  */
 // Bio Sensor Hub data buffer
-static uint8_t reportBuffer[MAX32664_FIFO_THRESHOLD * MAX32664_MAXIMFAST_REPORT_ALGO_SIZE];
+static uint8_t reportBuffer[MAX32664_FIFO_THRESHOLD * MAX32664_REPORT_ALGO_SIZE];
 
 // I2C
 static I2C_Transaction transaction;
@@ -187,11 +210,11 @@ max32664_status_t Max32664_initApplicationMode(void *isr_fxn) {
 }
 
 /*********************************************************************
- * @fn      Max32664_initMaximFastAlgorithm
+ * @fn      Max32664_initHeartRateAlgorithm
  *
- * @brief   Initialize the MaximFast Heart Rate algorithm for finger reading on the Biometric Sensor Hub.
+ * @brief   Initialize the Heart Rate algorithm for finger reading on the Biometric Sensor Hub.
  */
-max32664_status_t Max32664_initMaximFastAlgorithm() {
+max32664_status_t Max32664_initHeartRateAlgorithm() {
     uint8_t enable;
     uint8_t mode;
     max32664_status_t ret = STATUS_UNKNOWN_ERROR;
@@ -230,6 +253,7 @@ max32664_status_t Max32664_initMaximFastAlgorithm() {
     }
     Log_info0("Enable Automatic Gain Control algorithm");
 
+#ifdef USE_FINGER_SENSOR
     // Enable MAX30101 sensor
     enable = 0x01;
     ret = Max32664_enableMax30101Sensor(enable);
@@ -249,6 +273,27 @@ max32664_status_t Max32664_initMaximFastAlgorithm() {
         return ret;
     }
     Log_info1("Enable MaximFast algorithm (version A) in mode: %d", mode);
+#else
+    // Enable MAX86141 sensor
+    enable = 0x01;
+    ret = Max32664_enableMax86141Sensor(enable);
+    if (ret != STATUS_SUCCESS) {
+        Log_error0("Error enabling MAX86141 sensor");
+        return ret;
+    }
+    Log_info0("Enable MAX86141 sensor");
+
+    // Enable WHRM algorithm (version C)
+    // Mode 1: Normal Report
+    // Mode 2: Extended Report
+    mode = MAX32664_NORMAL_REPORT_MODE;
+    ret = Max32664_enableWhrmWspo2Algorithm(mode);
+    if (ret != STATUS_SUCCESS) {
+        Log_error0("Error enabling WHRM algorithm (version C)");
+        return ret;
+    }
+    Log_info1("Enable WHRM algorithm (version C) in mode: %d", mode);
+#endif
 
     Log_info0("MAX32664 Heart Rate Algorithm configured");
 
@@ -277,7 +322,7 @@ max32664_status_t Max32664_readFifoNumSamples(uint8_t *num_samples) {
 max32664_status_t Max32664_readHeartRate(heartrate_data_t *reports, int num_reports) {
     max32664_status_t ret = STATUS_UNKNOWN_ERROR;
 
-    int num_bytes = num_reports * MAX32664_MAXIMFAST_REPORT_ALGO_SIZE;
+    int num_bytes = num_reports * MAX32664_REPORT_ALGO_SIZE;
     ret = Max32664_readByteArray(MAX32664_READ_OUTPUT_FIFO, MAX32664_READ_FIFO_DATA, reportBuffer, num_bytes);
     if (ret != STATUS_SUCCESS) {
         Log_error0("Error reading output FIFO");
@@ -286,19 +331,24 @@ max32664_status_t Max32664_readHeartRate(heartrate_data_t *reports, int num_repo
 
     int index = 0;
     for (int i = 0; i < num_reports; i++) {
-        reports[i].heartRate = (uint16_t)reportBuffer[index + 0] << 8; // MSB
-        reports[i].heartRate |= reportBuffer[index + 1]; // LSB
-        reports[i].heartRateConfidence = reportBuffer[index + 2];
-        reports[i].spO2 = (uint16_t)reportBuffer[index + 3] << 8;     // MSB
-        reports[i].spO2 |= reportBuffer[index + 4];     // LSB
+        reports[i].heartRate = (uint16_t)reportBuffer[index + REPORT_HEARTRATE_MSB_INDEX] << 8; // MSB
+        reports[i].heartRate |= reportBuffer[index + REPORT_HEARTRATE_LSB_INDEX]; // LSB
+        reports[i].heartRateConfidence = reportBuffer[index + REPORT_HEARTRATE_CONFIDENCE_INDEX];
+        reports[i].spO2 = (uint16_t)reportBuffer[index + REPORT_SPO2_MSB_INDEX] << 8;     // MSB
+        reports[i].spO2 |= reportBuffer[index + REPORT_SPO2_LSB_INDEX];     // LSB
+
+#ifdef USE_FINGER_SENSOR
         reports[i].spO2Confidence = 0;
-        reports[i].scdState = reportBuffer[index + 5];
+#else
+        reports[i].spO2Confidence = reportBuffer[index + REPORT_SPO2_CONFIDENCE_INDEX];
+#endif
+        reports[i].scdState = reportBuffer[index + REPORT_SCD_STATE_INDEX];
 
         // Heart rate and SpO2 are multiplied x10
         reports[i].heartRate /= 10;
         reports[i].spO2 /= 10;
 
-        index += MAX32664_MAXIMFAST_REPORT_ALGO_SIZE;
+        index += MAX32664_REPORT_ALGO_SIZE;
     }
 
     return ret;

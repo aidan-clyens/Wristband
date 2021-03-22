@@ -16,8 +16,14 @@ extern "C"
 /*********************************************************************
  * CONSTANTS
  */
-#define MAX32664_MAXIMFAST_REPORT_ALGO_SIZE     6
-#define MAX32664_FIFO_THRESHOLD                 10
+#ifdef USE_FINGER_SENSOR
+#define MAX32664_REPORT_ALGO_SIZE       6
+#define MAX32664_FIFO_THRESHOLD         10
+#else
+#define MAX32664_REPORT_ALGO_SIZE       10
+#define MAX32664_FIFO_THRESHOLD         5
+#endif
+
 
 /*********************************************************************
  * TYPEDEFS
@@ -52,7 +58,7 @@ typedef enum {
  */
 // MAX32664 commands
 extern max32664_status_t Max32664_initApplicationMode(void *isr_fxn);
-extern max32664_status_t Max32664_initMaximFastAlgorithm();
+extern max32664_status_t Max32664_initHeartRateAlgorithm();
 
 extern max32664_status_t Max32664_readSensorHubStatus(uint8_t *status);
 extern max32664_status_t Max32664_readFifoNumSamples(uint8_t *num_samples);
