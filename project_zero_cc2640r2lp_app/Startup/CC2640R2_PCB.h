@@ -186,8 +186,8 @@ extern const PIN_Config BoardGpioInitTable[];
 #define CC2640R2_PCB_UART_RTS              IOID_18         /* RTS */
 
 /* MAX32664 */
-#define CC2640R2_PCB_MAX32664_RESET        IOID_21         /* Reset */
-#define CC2640R2_PCB_MAX32664_MFIO         IOID_15         /* MFIO */
+#define CC2640R2_PCB_MAX32664_RESET        IOID_20         /* Reset */
+#define CC2640R2_PCB_MAX32664_MFIO         IOID_19         /* MFIO */
 
 /* LIS3DH */
 #define CC2640R2_PCB_LIS3DH_CS             IOID_12         /* Chip Select */
