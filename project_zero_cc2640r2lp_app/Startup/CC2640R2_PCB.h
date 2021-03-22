@@ -131,8 +131,7 @@ extern const PIN_Config BoardGpioInitTable[];
 #define CC2640R2_PCB_DIO22                 IOID_22
 
 /* Discrete Inputs */
-#define CC2640R2_PCB_PIN_BTN1              IOID_13
-#define CC2640R2_PCB_PIN_BTN2              IOID_14
+#define CC2640R2_PCB_PIN_BTN1              IOID_23
 
 /* GPIO */
 #define CC2640R2_PCB_GPIO_LED_ON           1
