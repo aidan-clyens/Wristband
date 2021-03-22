@@ -139,8 +139,8 @@ extern const PIN_Config BoardGpioInitTable[];
 #define CC2640R2_PCB_GPIO_LED_OFF          0
 
 /* I2C */
-#define CC2640R2_PCB_I2C0_SCL0             IOID_4
-#define CC2640R2_PCB_I2C0_SDA0             IOID_5
+#define CC2640R2_PCB_I2C0_SCL0             IOID_7
+#define CC2640R2_PCB_I2C0_SDA0             IOID_6
 
 /* I2S */
 #define CC2640R2_PCB_I2S_ADO               IOID_0
