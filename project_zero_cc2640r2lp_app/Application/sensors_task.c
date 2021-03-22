@@ -19,7 +19,6 @@
 #include <ti/drivers/GPIO.h>
 
 #include <uartlog/UartLog.h>
-#include <Board.h>
 #include <util.h>
 
 #include "sensors_task.h"

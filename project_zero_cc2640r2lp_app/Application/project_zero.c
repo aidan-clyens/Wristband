@@ -72,7 +72,12 @@
 
 #include "util.h"
 
-#include "Board.h"
+#ifdef CC2640R2_LAUNCHXL
+#include <Board.h>
+#else
+#include <Board_PCB.h>
+#endif
+
 #include "project_zero.h"
 
 // Bluetooth Developer Studio services

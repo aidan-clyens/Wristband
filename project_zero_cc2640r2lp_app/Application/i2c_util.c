@@ -11,7 +11,12 @@
 #include <ti/drivers/I2C.h>
 
 #include <uartlog/UartLog.h>
+
+#ifdef CC2640R2_LAUNCHXL
 #include <Board.h>
+#else
+#include <Board_PCB.h>
+#endif
 
 #include "i2c_util.h"
 

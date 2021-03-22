@@ -15,7 +15,11 @@
 
 #include <uartlog/UartLog.h>
 
+#ifdef CC2640R2_LAUNCHXL
 #include <Board.h>
+#else
+#include <Board_PCB.h>
+#endif
 
 #include <icall.h>
 #include <spi_util.h>
