@@ -243,12 +243,12 @@ static uint8_t advertData[] =
   // complete name
   16,
   GAP_ADTYPE_LOCAL_NAME_COMPLETE,
-  'P', 'r', 'o', 'j', 'e', 'c', 't', ' ', 'Z', 'e', 'r', 'o', ' ','R','2',
+  'W','r','i','s','t','b','a','n','d'
 
 };
 
 // GAP GATT Attributes
-static uint8_t attDeviceName[GAP_DEVICE_NAME_LEN] = "Project Zero R2";
+static uint8_t attDeviceName[GAP_DEVICE_NAME_LEN] = "Aidan Wristband";
 
 // Globals used for ATT Response retransmission
 static gattMsgEvent_t *pAttRsp = NULL;
